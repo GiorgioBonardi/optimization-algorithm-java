@@ -38,7 +38,9 @@ public class Main {
    * @throws IOException
    */
   public static void main(final String[] args) throws GRBException, IOException {
-    final String executionId = DTF.format(Instant.ofEpochMilli(System.currentTimeMillis()));
+    final Instant now = Instant.ofEpochMilli(System.currentTimeMillis());
+    // Windows does not allow the character ':' in file names
+    final String executionId = DTF.format(now).replace(':', '_');
 
     // Collect instance file paths
     final List<Path> paths = new ArrayList<>();
@@ -60,6 +62,8 @@ public class Main {
     );
     System.in.read();
 
+    final Path outputDir = OUTPUT_DIR.resolve(executionId);
+    Files.createDirectories(outputDir);
     GRBEnv env = null;
     try {
       env = new GRBEnv();
@@ -69,9 +73,6 @@ public class Main {
         System.out.println("------------------------------------------------------------");
         System.out.println("Solving instance '" + path.getFileName() + "'");
         System.out.println("------------------------------------------------------------");
-        final Path outputDir = OUTPUT_DIR.resolve(executionId);
-        Files.createDirectories(outputDir);
-
         final Instance instance = Instance.load(path);
         GRBModel model = null;
         try {
