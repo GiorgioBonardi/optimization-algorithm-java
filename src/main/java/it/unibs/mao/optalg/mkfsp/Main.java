@@ -74,7 +74,19 @@ public class Main {
         System.out.println("Solving instance '" + path.getFileName() + "'");
         System.out.println("------------------------------------------------------------");
         final Instance instance = Instance.load(path);
+
+        final int numIterations = 10; // Number of iterations for GRASP
+
+        // Call GRASP algorithm
+        int[] solution = GRASP.grasp(instance, numIterations);
+
+        // Check feasibility and print the result
+        System.out.println("Solution: " + Arrays.toString(solution));
+
+        /*
         GRBModel model = null;
+        //modello reale
+
         try {
           final ModelVars modelVars = Model.build(instance, env);
           model = modelVars.model();
@@ -120,6 +132,7 @@ public class Main {
             model.dispose();
           }
         }
+*/
       }
 
     } finally {
