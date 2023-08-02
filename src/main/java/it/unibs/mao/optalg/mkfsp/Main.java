@@ -78,10 +78,10 @@ public class Main {
         final int numIterations = 10; // Number of iterations for GRASP
 
         // Call GRASP algorithm
-        int[] solution = GRASP.grasp(instance, numIterations);
+        Solution solution = GRASP.grasp(instance, numIterations);
 
         // Check feasibility and print the result
-        System.out.println("Solution: " + Arrays.toString(solution));
+        System.out.println(solution);
 
         /*
         GRBModel model = null;

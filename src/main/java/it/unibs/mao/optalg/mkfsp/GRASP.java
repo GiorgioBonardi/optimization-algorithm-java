@@ -5,14 +5,17 @@ import gurobi.GRBException;
 import gurobi.GRBVar;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
+import java.util.stream.IntStream;
 
 public class GRASP {
 
     private static final int MAX_ITERATIONS = 100;
     private static final int MAX_LOCAL_SEARCH_ITERATIONS = 20;
 
-    public static int[] grasp(Instance instance, int numIterations) throws GRBException {
+    public static Solution grasp(Instance instance, int numIterations) throws GRBException {
         int nItems = instance.nItems();
         int[] bestSolution = new int[nItems];
         double bestObjectiveValue = Double.NEGATIVE_INFINITY;
@@ -29,27 +32,43 @@ public class GRASP {
             }
         }
 
-        return bestSolution;
+        return new Solution(bestSolution, bestObjectiveValue);
     }
 
     private static int[] constructivePhase(Instance instance, Random random) throws GRBException {
         int nItems = instance.nItems();
         int[] solution = new int[nItems];
         Arrays.fill(solution, -1);
+        int nKnapsacks = instance.nKnapsacks();
 
         while (true) {
-            boolean feasibleSolution = false;
-            int j = random.nextInt(instance.nFamilies() - 1);
+            boolean feasibleSolution = true;
 
-            for (int i = instance.firstItems()[j]; i < nItems; i++) {
+            //seleziono una famiglia random
+            int j = random.nextInt(instance.nFamilies() - 1);
+            //ciclo su tutti gli item della famiglia
+            for (int i = instance.firstItems()[j]; i < instance.firstItems()[j+1]; i++) {
+                Set<Integer> availableKnapsacks = new HashSet<>();
+                for (int k = 0; k < nKnapsacks; k++) {
+                    availableKnapsacks.add(k);
+                }
+                boolean itemInserted = false;
                 if (solution[i] == -1) {
-                    int k = random.nextInt(instance.nKnapsacks());
-                    double cost = calculateFamilySplitPenalty(instance, j, solution);
-                    if (isAssignmentValid(instance, i, k, solution)) {
-                        solution[i] = k;
-                        solution = localSearch(instance, solution, random);
-                        feasibleSolution = true;
-                        break;
+                    while(!availableKnapsacks.isEmpty()) { //finchè non ho knapsack disponibili
+                        int randomKnapsack = getRandomKnapsack(availableKnapsacks, random);
+                        // Try inserting the item into the random knapsack, if it fits, break out of the loop
+                        if (isAssignmentValid(instance, i, randomKnapsack, solution)) {
+                            solution[i] = randomKnapsack;
+                            itemInserted = true;
+                            break;
+                        } else {
+                            availableKnapsacks.remove(randomKnapsack);
+                        }
+                    }
+                    if (!itemInserted) {
+                       //devo rimettere la soluzione come era prima
+                        //devo anche uscire con un break immagino
+                        feasibleSolution = false; //da vedere meglio anche questo
                     }
                 }
             }
@@ -60,6 +79,20 @@ public class GRASP {
         }
 
         return solution;
+    }
+
+    // Method to get a random knapsack from the available ones
+    private static int getRandomKnapsack(Set<Integer> availableKnapsacks, Random random) {
+        int size = availableKnapsacks.size();
+        int randomIndex = random.nextInt(size);
+        int currentIndex = 0;
+        for (int knapsack : availableKnapsacks) {
+            if (currentIndex == randomIndex) {
+                return knapsack;
+            }
+            currentIndex++;
+        }
+        return -1; // In reality, this should never happen
     }
 
     private static boolean isAssignmentValid(Instance instance, int i, int k, int[] solution) {
@@ -116,20 +149,23 @@ public class GRASP {
             int familySize = instance.firstItems()[j + 1] - instance.firstItems()[j];
             int[] knapsackCounts = new int[instance.nKnapsacks()];
             int[] familyItems = Arrays.copyOfRange(solution, instance.firstItems()[j], instance.firstItems()[j + 1]);
+            int isFamilySelected = 0;
 
             for (int item : familyItems) {
                 if (item != -1) {
                     knapsackCounts[item]++;
+                    isFamilySelected = 1;
                 }
             }
 
             int numSplits = (int) Arrays.stream(knapsackCounts).filter(count -> count > 0).count() - 1;
-            objectiveValue += instance.profits()[j] - instance.penalties()[j] * numSplits;
+            objectiveValue += instance.profits()[j] * isFamilySelected - instance.penalties()[j] * numSplits;
         }
 
         return objectiveValue;
     }
 
+    //NON UTILIZZATO
     private static double calculateFamilySplitPenalty(Instance instance, int family, int[] solution) {
         int[] knapsackCounts = new int[instance.nKnapsacks()];
         int[] familyItems = Arrays.copyOfRange(solution, instance.firstItems()[family], instance.firstItems()[family + 1]);
@@ -140,7 +176,7 @@ public class GRASP {
             }
         }
 
-        int numSplits = (int) Arrays.stream(knapsackCounts).filter(count -> count > 0).count();
+        int numSplits = (int) Arrays.stream(knapsackCounts).filter(count -> count > 0).count() - 1;
         return instance.penalties()[family] * numSplits;
     }
 }
