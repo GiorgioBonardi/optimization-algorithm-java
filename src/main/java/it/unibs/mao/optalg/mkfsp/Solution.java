@@ -1,8 +1,9 @@
 package it.unibs.mao.optalg.mkfsp;
 
+import java.io.Serializable;
 import java.util.Arrays;
 
-public class Solution {
+public class Solution implements Serializable {
 
     private int[] solution;
     private double objectiveValue;

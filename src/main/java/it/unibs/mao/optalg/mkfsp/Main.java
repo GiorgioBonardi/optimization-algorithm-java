@@ -1,6 +1,9 @@
 package it.unibs.mao.optalg.mkfsp;
 
+import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -12,6 +15,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import gurobi.GRB;
 import gurobi.GRBEnv;
 import gurobi.GRBException;
@@ -55,6 +59,10 @@ public class Main {
     }
     paths.sort(null);
 
+    //per eseguire solo example!!!
+    final List<Path> pathsTemp = new ArrayList<>();
+    pathsTemp.add(Path.of(INSTANCES_DIR + "/instance01.json"));
+
     // Solve each instance
     System.out.print(
         "Solving " + paths.size() + " instances with a time limit of " + TIME_LIMIT +
@@ -64,6 +72,7 @@ public class Main {
 
     final Path outputDir = OUTPUT_DIR.resolve(executionId);
     Files.createDirectories(outputDir);
+
     GRBEnv env = null;
     try {
       env = new GRBEnv();
@@ -75,13 +84,35 @@ public class Main {
         System.out.println("------------------------------------------------------------");
         final Instance instance = Instance.load(path);
 
-        final int numIterations = 10; // Number of iterations for GRASP
+        final int numIterations = 20; // Number of iterations for GRASP
 
         // Call GRASP algorithm
         Solution solution = GRASP.grasp(instance, numIterations);
 
+        //Feasibility check
+        final FeasibilityCheck check = instance.checkFeasibility(solution.getSolution(), solution.getObjectiveValue());
+
+        System.out.println("\nSolution: " + solution.getObjectiveValue() + " (valid: " + check.isValid() + ")");
+        if (!check.isValid()) {
+          for (final String errMsg: check.errorMessages()) {
+            System.out.println("  - " + errMsg);
+          }
+        }
+
         // Check feasibility and print the result
         System.out.println(solution);
+
+        //Salvataggio GRASP su file
+        Path filePath = outputDir.resolve(instance.id() + ".json");
+
+        // Usa Jackson per convertire l'oggetto Solution in una stringa JSON
+        ObjectMapper objectMapper = new ObjectMapper();
+        String json = objectMapper.writeValueAsString(solution);
+
+        // Salva la stringa JSON nel file
+        try (FileWriter writer = new FileWriter(filePath.toFile())) {
+          writer.write(json);
+        }
 
         /*
         GRBModel model = null;

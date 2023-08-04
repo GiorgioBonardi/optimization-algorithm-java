@@ -4,16 +4,14 @@ import gurobi.GRB;
 import gurobi.GRBException;
 import gurobi.GRBVar;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.IntStream;
 
 public class GRASP {
 
     private static final int MAX_ITERATIONS = 100;
     private static final int MAX_LOCAL_SEARCH_ITERATIONS = 20;
+    private static final int MAX_TABU_SEARCH_ITERATIONS = 20;
 
     public static Solution grasp(Instance instance, int numIterations) throws GRBException {
         int nItems = instance.nItems();
@@ -23,7 +21,8 @@ public class GRASP {
 
         for (int iteration = 0; iteration < numIterations; iteration++) {
             int[] solution = constructivePhase(instance, random);
-            solution = localSearch(instance, solution, random);
+            //solution = localSearch(instance, solution, random);
+            solution = tabuSearch(instance, solution, random);
 
             double objectiveValue = calculateObjectiveValue(instance, solution);
             if (objectiveValue > bestObjectiveValue) {
@@ -41,13 +40,27 @@ public class GRASP {
         Arrays.fill(solution, -1);
         int nKnapsacks = instance.nKnapsacks();
 
-        while (true) {
-            boolean feasibleSolution = true;
+        Set<Integer> avaiableFamily = new HashSet<>();
+        for (int j = 0; j < instance.nFamilies(); j++) {
+            avaiableFamily.add(j);
+        }
 
+        while (!avaiableFamily.isEmpty()) {
             //seleziono una famiglia random
-            int j = random.nextInt(instance.nFamilies() - 1);
+            //int j = random.nextInt(instance.nFamilies() - 1);
+            int j = getRandomFamily(avaiableFamily, random);
             //ciclo su tutti gli item della famiglia
-            for (int i = instance.firstItems()[j]; i < instance.firstItems()[j+1]; i++) {
+            int endItem = (j == instance.nFamilies() - 1) ? nItems: instance.firstItems()[j+1];
+            /*if (j == instance.nFamilies() - 1) {
+                endItem = nItems;
+            } else {
+                endItem = instance.firstItems()[j+1];
+            }*/
+
+            int[] solutionPre = new int[nItems];
+            System.arraycopy(solution, 0, solutionPre, 0, solution.length);
+
+            for (int i = instance.firstItems()[j]; i < endItem; i++) {
                 Set<Integer> availableKnapsacks = new HashSet<>();
                 for (int k = 0; k < nKnapsacks; k++) {
                     availableKnapsacks.add(k);
@@ -55,7 +68,7 @@ public class GRASP {
                 boolean itemInserted = false;
                 if (solution[i] == -1) {
                     while(!availableKnapsacks.isEmpty()) { //finchè non ho knapsack disponibili
-                        int randomKnapsack = getRandomKnapsack(availableKnapsacks, random);
+                        int randomKnapsack = getRandomKnapsack(availableKnapsacks, random); //TODO: per migliorare l'algoritmo al posto che random prova a selezionare il knaps precedente così da mettere una famiglia insieme
                         // Try inserting the item into the random knapsack, if it fits, break out of the loop
                         if (isAssignmentValid(instance, i, randomKnapsack, solution)) {
                             solution[i] = randomKnapsack;
@@ -67,14 +80,17 @@ public class GRASP {
                     }
                     if (!itemInserted) {
                        //devo rimettere la soluzione come era prima
-                        //devo anche uscire con un break immagino
-                        feasibleSolution = false; //da vedere meglio anche questo
+                        solution = solutionPre;
+                        avaiableFamily.remove(j);
+                        break;
+                    }
+
+                    //controllo se è l'ultimo elemento della famiglia
+                    if (i == endItem - 1 && itemInserted) {
+                        avaiableFamily.remove(j);
+                        break;
                     }
                 }
-            }
-
-            if (!feasibleSolution) {
-                break;
             }
         }
 
@@ -95,6 +111,18 @@ public class GRASP {
         return -1; // In reality, this should never happen
     }
 
+    private static int getRandomFamily(Set<Integer> avaiableFamily, Random random) {
+        int size = avaiableFamily.size();
+        int randomIndex = random.nextInt(size);
+        int currentIndex = 0;
+        for (int family : avaiableFamily) {
+            if (currentIndex == randomIndex) {
+                return family;
+            }
+            currentIndex++;
+        }
+        return -1; // In reality, this should never happen
+    }
     private static boolean isAssignmentValid(Instance instance, int i, int k, int[] solution) {
         int nResources = instance.nResources();
         int[][] items = instance.items();
@@ -141,27 +169,37 @@ public class GRASP {
 
         return currentSolution;
     }
-
     private static double calculateObjectiveValue(Instance instance, int[] solution) {
         double objectiveValue = 0.0;
 
-        for (int j = 0; j < instance.nFamilies() - 1; j++) {
-            int familySize = instance.firstItems()[j + 1] - instance.firstItems()[j];
-            int[] knapsackCounts = new int[instance.nKnapsacks()];
-            int[] familyItems = Arrays.copyOfRange(solution, instance.firstItems()[j], instance.firstItems()[j + 1]);
-            int isFamilySelected = 0;
+        final int nItems = instance.nItems();
+        final int nFamilies = instance.nFamilies();
+        final int nKnapsacks = instance.nKnapsacks();
+        final int nResources = instance.nResources();
+        final int[] firstItems = instance.firstItems();
 
-            for (int item : familyItems) {
-                if (item != -1) {
-                    knapsackCounts[item]++;
-                    isFamilySelected = 1;
+        final Map<Integer,Set<Integer>> splits = new HashMap<>();
+        final int[][] usedResources = new int[nKnapsacks][nResources];
+        for (int j = 0; j < nFamilies; ++j) {
+            final int firstItem = firstItems[j];
+            final int endItem = j+1 < nFamilies ? firstItems[j+1] : nItems;
+            int itemCount = 0;
+            for (int i = firstItem; i < endItem; ++i) {
+                final int k = solution[i];
+                if (-1 < k && k < nKnapsacks) {
+                    itemCount += 1;
+                    for (int r = 0; r < nResources; ++r) {
+                        usedResources[k][r] += instance.items()[i][r];
+                    }
+                    splits.computeIfAbsent(j, (key) -> new HashSet<>()).add(k);
                 }
             }
 
-            int numSplits = (int) Arrays.stream(knapsackCounts).filter(count -> count > 0).count() - 1;
-            objectiveValue += instance.profits()[j] * isFamilySelected - instance.penalties()[j] * numSplits;
+            final int familySize = endItem - firstItem;
+            if (itemCount == familySize) {
+                objectiveValue += instance.profits()[j] - instance.penalties()[j] * (splits.get(j).size() - 1);
+            }
         }
-
         return objectiveValue;
     }
 
@@ -178,5 +216,83 @@ public class GRASP {
 
         int numSplits = (int) Arrays.stream(knapsackCounts).filter(count -> count > 0).count() - 1;
         return instance.penalties()[family] * numSplits;
+    }
+    //TODO: DA CONTROLLARE
+    private static int[] tabuSearch(Instance instance, int[] initialSolution, Random random) throws GRBException {
+        int[] bestSolution = initialSolution.clone();
+        double bestObjectiveValue = calculateObjectiveValue(instance, bestSolution);
+
+        int nItems = instance.nItems();
+        int tabuListSize = nItems / 2; // Dimensione lista tabu (puoi sperimentare con diverse dimensioni)
+        List<int[]> tabuList = new ArrayList<>();
+
+        for (int iteration = 0; iteration < MAX_TABU_SEARCH_ITERATIONS; iteration++) {
+            List<int[]> candidateSolutions = new ArrayList<>();
+
+            for (int i = 0; i < nItems; i++) {
+                int currentItemFamily = findItemFamily(instance, i);
+                for (int k = 0; k < instance.nKnapsacks(); k++) {
+                    if (isAssignmentValid(instance, i, k, bestSolution) &&
+                            (currentItemFamily == -1 || isWholeFamilyAssigned(instance, currentItemFamily, k, bestSolution)) &&
+                            !isInTabuList(i, k, tabuList)) {
+                        int[] newSolution = bestSolution.clone();
+                        newSolution[i] = k;
+                        double newObjectiveValue = calculateObjectiveValue(instance, newSolution);
+
+                        candidateSolutions.add(newSolution);
+                    }
+                }
+            }
+
+            if (candidateSolutions.isEmpty()) {
+                break; // Nessuna soluzione candidata valida
+            }
+
+            int[] nextSolution = Collections.max(candidateSolutions, Comparator.comparingDouble(sol -> calculateObjectiveValue(instance, sol)));
+
+            tabuList.add(nextSolution);
+            if (tabuList.size() > tabuListSize) {
+                tabuList.remove(0); // Rimuovi la soluzione più vecchia dalla lista tabu
+            }
+
+            double nextObjectiveValue = calculateObjectiveValue(instance, nextSolution);
+            if (nextObjectiveValue > bestObjectiveValue) {
+                bestSolution = nextSolution;
+                bestObjectiveValue = nextObjectiveValue;
+            }
+        }
+
+        return bestSolution;
+    }
+
+    private static int findItemFamily(Instance instance, int item) {
+        for (int j = 0; j < instance.nFamilies(); j++) {
+            int familyStart = instance.firstItems()[j];
+            int familyEnd = (j + 1 < instance.nFamilies()) ? instance.firstItems()[j + 1] : instance.nItems();
+            if (item >= familyStart && item < familyEnd) {
+                return j;
+            }
+        }
+        return -1; // L'elemento non appartiene a nessuna famiglia
+    }
+
+    private static boolean isWholeFamilyAssigned(Instance instance, int family, int knapsack, int[] solution) {
+        int familyStart = instance.firstItems()[family];
+        int familyEnd = (family + 1 < instance.nFamilies()) ? instance.firstItems()[family + 1] : instance.nItems();
+        for (int i = familyStart; i < familyEnd; i++) {
+            if (solution[i] != knapsack) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isInTabuList(int i, int k, List<int[]> tabuList) {
+        for (int[] solution : tabuList) {
+            if (solution[i] == k) {
+                return true;
+            }
+        }
+        return false;
     }
 }
