@@ -1,6 +1,7 @@
-package it.unibs.mao.optalg.mkfsp;
+package it.unibs.mao.optalg.mkfsp.separationProblem;
 
 import gurobi.*;
+import it.unibs.mao.optalg.mkfsp.Instance;
 
 /**
  * A utility class with one static method that builds the Gurobi model for the Separation Problem instance.

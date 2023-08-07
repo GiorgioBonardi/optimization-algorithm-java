@@ -1,6 +1,9 @@
-package it.unibs.mao.optalg.mkfsp;
+package it.unibs.mao.optalg.mkfsp.separationProblem;
 
 import gurobi.*;
+import it.unibs.mao.optalg.mkfsp.Instance;
+import it.unibs.mao.optalg.mkfsp.separationProblem.SeparationProblemModel;
+import it.unibs.mao.optalg.mkfsp.separationProblem.SeparationProblemModelVars;
 
 import java.io.IOException;
 import java.nio.file.Path;

@@ -1,4 +1,4 @@
-package it.unibs.mao.optalg.mkfsp;
+package it.unibs.mao.optalg.mkfsp.separationProblem;
 
 import gurobi.GRBModel;
 import gurobi.GRBVar;

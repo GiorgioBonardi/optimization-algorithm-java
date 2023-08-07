@@ -1,11 +1,9 @@
-package it.unibs.mao.optalg.mkfsp;
+package it.unibs.mao.optalg.mkfsp.grasp;
 
-import gurobi.GRB;
 import gurobi.GRBException;
-import gurobi.GRBVar;
+import it.unibs.mao.optalg.mkfsp.Instance;
 
 import java.util.*;
-import java.util.stream.IntStream;
 
 public class GRASP {
 
@@ -18,10 +16,12 @@ public class GRASP {
         int[] bestSolution = new int[nItems];
         double bestObjectiveValue = Double.NEGATIVE_INFINITY;
         Random random = new Random();
+        long startTime = System.nanoTime();
 
         for (int iteration = 0; iteration < numIterations; iteration++) {
             int[] solution = constructivePhase(instance, random);
             //solution = localSearch(instance, solution, random);
+
             solution = tabuSearch(instance, solution, random);
 
             double objectiveValue = calculateObjectiveValue(instance, solution);
@@ -29,9 +29,13 @@ public class GRASP {
                 bestObjectiveValue = objectiveValue;
                 bestSolution = solution.clone();
             }
+
         }
 
-        return new Solution(bestSolution, bestObjectiveValue);
+        long endTime = System.nanoTime();
+        double elapsedTimeInSeconds = (endTime - startTime) / 1e9;
+
+        return new Solution(bestSolution, bestObjectiveValue, elapsedTimeInSeconds);
     }
 
     private static int[] constructivePhase(Instance instance, Random random) throws GRBException {
@@ -47,19 +51,14 @@ public class GRASP {
 
         while (!avaiableFamily.isEmpty()) {
             //seleziono una famiglia random
-            //int j = random.nextInt(instance.nFamilies() - 1);
             int j = getRandomFamily(avaiableFamily, random);
             //ciclo su tutti gli item della famiglia
             int endItem = (j == instance.nFamilies() - 1) ? nItems: instance.firstItems()[j+1];
-            /*if (j == instance.nFamilies() - 1) {
-                endItem = nItems;
-            } else {
-                endItem = instance.firstItems()[j+1];
-            }*/
 
             int[] solutionPre = new int[nItems];
             System.arraycopy(solution, 0, solutionPre, 0, solution.length);
 
+            int prevKnapsack = -1;
             for (int i = instance.firstItems()[j]; i < endItem; i++) {
                 Set<Integer> availableKnapsacks = new HashSet<>();
                 for (int k = 0; k < nKnapsacks; k++) {
@@ -68,11 +67,17 @@ public class GRASP {
                 boolean itemInserted = false;
                 if (solution[i] == -1) {
                     while(!availableKnapsacks.isEmpty()) { //finchè non ho knapsack disponibili
-                        int randomKnapsack = getRandomKnapsack(availableKnapsacks, random); //TODO: per migliorare l'algoritmo al posto che random prova a selezionare il knaps precedente così da mettere una famiglia insieme
+                        /*
+                        Cerco di mettere l'item nello stesso knapsack di prima in modo da diminuire le penalità
+                        avendo gli item della stessa famiglia nello stesso knapsack
+                         */
+                        int randomKnapsack = (prevKnapsack != -1 && availableKnapsacks.size() == nKnapsacks) ? prevKnapsack : getRandomKnapsack(availableKnapsacks, random);
+
                         // Try inserting the item into the random knapsack, if it fits, break out of the loop
                         if (isAssignmentValid(instance, i, randomKnapsack, solution)) {
                             solution[i] = randomKnapsack;
                             itemInserted = true;
+                            prevKnapsack = randomKnapsack;
                             break;
                         } else {
                             availableKnapsacks.remove(randomKnapsack);

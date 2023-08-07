@@ -1,26 +1,22 @@
 package it.unibs.mao.optalg.mkfsp;
 
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import gurobi.GRB;
 import gurobi.GRBEnv;
 import gurobi.GRBException;
-import gurobi.GRBModel;
-import gurobi.GRBVar;
+import it.unibs.mao.optalg.mkfsp.grasp.GRASP;
+import it.unibs.mao.optalg.mkfsp.grasp.Solution;
 
 public class Main {
   private static final double INT_TOLERANCE = 1e-6;
@@ -30,6 +26,9 @@ public class Main {
 
   public static final Path INSTANCES_DIR = Path.of("instances");
   public static final Path OUTPUT_DIR = Path.of("output");
+
+  //GRASP
+  public static final int NUM_ITERATION_GRASP = 100;
 
   /**
    * A simple example of how to use the functions provided in this codebase.
@@ -84,10 +83,9 @@ public class Main {
         System.out.println("------------------------------------------------------------");
         final Instance instance = Instance.load(path);
 
-        final int numIterations = 20; // Number of iterations for GRASP
 
         // Call GRASP algorithm
-        Solution solution = GRASP.grasp(instance, numIterations);
+        Solution solution = GRASP.grasp(instance, NUM_ITERATION_GRASP);
 
         //Feasibility check
         final FeasibilityCheck check = instance.checkFeasibility(solution.getSolution(), solution.getObjectiveValue());
