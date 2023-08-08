@@ -28,7 +28,7 @@ public class Main {
   public static final Path OUTPUT_DIR = Path.of("output");
 
   //GRASP
-  public static final int NUM_ITERATION_GRASP = 100;
+  public static final int NUM_ITERATION_GRASP = 50;
 
   /**
    * A simple example of how to use the functions provided in this codebase.
@@ -85,6 +85,7 @@ public class Main {
 
 
         // Call GRASP algorithm
+        //perchè GRASP è statico ha senso?
         Solution solution = GRASP.grasp(instance, NUM_ITERATION_GRASP);
 
         //Feasibility check

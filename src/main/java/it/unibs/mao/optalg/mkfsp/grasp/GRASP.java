@@ -10,6 +10,7 @@ public class GRASP {
     private static final int MAX_ITERATIONS = 100;
     private static final int MAX_LOCAL_SEARCH_ITERATIONS = 20;
     private static final int MAX_TABU_SEARCH_ITERATIONS = 20;
+    private static final double BETA_RCL = 0.3;
 
     public static Solution grasp(Instance instance, int numIterations) throws GRBException {
         int nItems = instance.nItems();
@@ -22,7 +23,7 @@ public class GRASP {
             int[] solution = constructivePhase(instance, random);
             //solution = localSearch(instance, solution, random);
 
-            solution = tabuSearch(instance, solution, random);
+            //solution = tabuSearch(instance, solution, random);
 
             double objectiveValue = calculateObjectiveValue(instance, solution);
             if (objectiveValue > bestObjectiveValue) {
@@ -38,25 +39,28 @@ public class GRASP {
         return new Solution(bestSolution, bestObjectiveValue, elapsedTimeInSeconds);
     }
 
-    private static int[] constructivePhase(Instance instance, Random random) throws GRBException {
+    private static int[] constructivePhase(Instance instance, Random random) {
         int nItems = instance.nItems();
         int[] solution = new int[nItems];
         Arrays.fill(solution, -1);
         int nKnapsacks = instance.nKnapsacks();
 
-        Set<Integer> avaiableFamily = new HashSet<>();
+        Set<Integer> availableFamily = new HashSet<>();
         for (int j = 0; j < instance.nFamilies(); j++) {
-            avaiableFamily.add(j);
+            availableFamily.add(j);
         }
 
-        while (!avaiableFamily.isEmpty()) {
+        while (!availableFamily.isEmpty()) {
             //seleziono una famiglia random
-            int j = getRandomFamily(avaiableFamily, random);
+            //MIGLIORAMENTO: prendo la famiglia con il profitto più alto? BUILD RCL
+            List<Integer> rcl = buildRCL(instance, availableFamily, BETA_RCL);
+            int j = getRandomFamilyFromRCL(rcl, random);
+            //int j = getRandomFamily(availableFamily, random);
             //ciclo su tutti gli item della famiglia
             int endItem = (j == instance.nFamilies() - 1) ? nItems: instance.firstItems()[j+1];
 
-            int[] solutionPre = new int[nItems];
-            System.arraycopy(solution, 0, solutionPre, 0, solution.length);
+            int[] prevSolution = new int[nItems];
+            System.arraycopy(solution, 0, prevSolution, 0, solution.length);
 
             int prevKnapsack = -1;
             for (int i = instance.firstItems()[j]; i < endItem; i++) {
@@ -85,14 +89,15 @@ public class GRASP {
                     }
                     if (!itemInserted) {
                        //devo rimettere la soluzione come era prima
-                        solution = solutionPre;
-                        avaiableFamily.remove(j);
+                        solution = prevSolution;
+                        availableFamily.remove(j);
                         break;
                     }
 
                     //controllo se è l'ultimo elemento della famiglia
+                    // in teoria non serve basta mettere un else nel if di prima nel quale rimuovi la famiglia
                     if (i == endItem - 1 && itemInserted) {
-                        avaiableFamily.remove(j);
+                        availableFamily.remove(j);
                         break;
                     }
                 }
@@ -116,11 +121,11 @@ public class GRASP {
         return -1; // In reality, this should never happen
     }
 
-    private static int getRandomFamily(Set<Integer> avaiableFamily, Random random) {
-        int size = avaiableFamily.size();
+    private static int getRandomFamily(Set<Integer> availableFamily, Random random) {
+        int size = availableFamily.size();
         int randomIndex = random.nextInt(size);
         int currentIndex = 0;
-        for (int family : avaiableFamily) {
+        for (int family : availableFamily) {
             if (currentIndex == randomIndex) {
                 return family;
             }
@@ -149,6 +154,35 @@ public class GRASP {
         }
 
         return true;
+    }
+
+    private static List<Integer> buildRCL(Instance instance, Set<Integer> availableFamily, double beta) {
+        List<Integer> rcl = new ArrayList<>();
+        List<Integer> rankedFamilies = rankFamiliesByProfits(instance, availableFamily);
+
+        int numBestElements = (int) (rankedFamilies.size() * beta);
+        numBestElements = numBestElements > 0 ? numBestElements : 1;
+
+        for (int i = 0; i < numBestElements; i++) {
+            rcl.add(rankedFamilies.get(i));
+        }
+        return rcl;
+    }
+
+    private static List<Integer> rankFamiliesByProfits(Instance instance, Set<Integer> availableFamily) {
+        List<Integer> familyIndices = new ArrayList<>();
+        for (int family : availableFamily) {
+            familyIndices.add(family);
+        }
+
+        familyIndices.sort(Comparator.comparingDouble((Integer familyIndex) -> instance.profits()[familyIndex]).reversed());
+
+        return familyIndices;
+    }
+    private static int getRandomFamilyFromRCL(List<Integer> rcl, Random random) {
+        int size = rcl.size();
+        int randomIndex = random.nextInt(size);
+        return rcl.get(randomIndex);
     }
 
     private static int[] localSearch(Instance instance, int[] initialSolution, Random random) throws GRBException {
