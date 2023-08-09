@@ -12,7 +12,7 @@ public class GRASP {
     private static final int MAX_TABU_SEARCH_ITERATIONS = 20;
     private static final double BETA_RCL = 0.3;
 
-    public static Solution grasp(Instance instance, int numIterations) throws GRBException {
+    public static Solution grasp(Instance instance, int numIterations) {
         int nItems = instance.nItems();
         int[] bestSolution = new int[nItems];
         double bestObjectiveValue = Double.NEGATIVE_INFINITY;
@@ -22,10 +22,10 @@ public class GRASP {
         for (int iteration = 0; iteration < numIterations; iteration++) {
             int[] solution = constructivePhase(instance, random);
             //solution = localSearch(instance, solution, random);
-
+            //solution = localSearchWithInitialSolution(instance, solution, random);
             //solution = tabuSearch(instance, solution, random);
 
-            double objectiveValue = calculateObjectiveValue(instance, solution);
+            double objectiveValue = Utils.calculateObjectiveValue(instance, solution);
             if (objectiveValue > bestObjectiveValue) {
                 bestObjectiveValue = objectiveValue;
                 bestSolution = solution.clone();
@@ -51,26 +51,25 @@ public class GRASP {
         }
 
         while (!availableFamily.isEmpty()) {
-            //seleziono una famiglia random
-            //MIGLIORAMENTO: prendo la famiglia con il profitto più alto? BUILD RCL
+            //seleziono una famiglia random dalla lista RCL
             List<Integer> rcl = buildRCL(instance, availableFamily, BETA_RCL);
-            int j = getRandomFamilyFromRCL(rcl, random);
-            //int j = getRandomFamily(availableFamily, random);
+            int randomFamily = getRandomFamilyFromRCL(rcl, random);
+
             //ciclo su tutti gli item della famiglia
-            int endItem = (j == instance.nFamilies() - 1) ? nItems: instance.firstItems()[j+1];
+            int endItem = (randomFamily == instance.nFamilies() - 1) ? nItems: instance.firstItems()[randomFamily+1];
 
             int[] prevSolution = new int[nItems];
             System.arraycopy(solution, 0, prevSolution, 0, solution.length);
 
             int prevKnapsack = -1;
-            for (int i = instance.firstItems()[j]; i < endItem; i++) {
+            for (int i = instance.firstItems()[randomFamily]; i < endItem; i++) {
                 Set<Integer> availableKnapsacks = new HashSet<>();
                 for (int k = 0; k < nKnapsacks; k++) {
                     availableKnapsacks.add(k);
                 }
                 boolean itemInserted = false;
                 if (solution[i] == -1) {
-                    while(!availableKnapsacks.isEmpty()) { //finchè non ho knapsack disponibili
+                    while(!availableKnapsacks.isEmpty()) {
                         /*
                         Cerco di mettere l'item nello stesso knapsack di prima in modo da diminuire le penalità
                         avendo gli item della stessa famiglia nello stesso knapsack
@@ -78,7 +77,7 @@ public class GRASP {
                         int randomKnapsack = (prevKnapsack != -1 && availableKnapsacks.size() == nKnapsacks) ? prevKnapsack : getRandomKnapsack(availableKnapsacks, random);
 
                         // Try inserting the item into the random knapsack, if it fits, break out of the loop
-                        if (isAssignmentValid(instance, i, randomKnapsack, solution)) {
+                        if (Utils.isAssignmentValid(instance, i, randomKnapsack, solution)) {
                             solution[i] = randomKnapsack;
                             itemInserted = true;
                             prevKnapsack = randomKnapsack;
@@ -90,14 +89,12 @@ public class GRASP {
                     if (!itemInserted) {
                        //devo rimettere la soluzione come era prima
                         solution = prevSolution;
-                        availableFamily.remove(j);
+                        availableFamily.remove(randomFamily);
                         break;
                     }
 
-                    //controllo se è l'ultimo elemento della famiglia
-                    // in teoria non serve basta mettere un else nel if di prima nel quale rimuovi la famiglia
                     if (i == endItem - 1 && itemInserted) {
-                        availableFamily.remove(j);
+                        availableFamily.remove(randomFamily);
                         break;
                     }
                 }
@@ -133,28 +130,6 @@ public class GRASP {
         }
         return -1; // In reality, this should never happen
     }
-    private static boolean isAssignmentValid(Instance instance, int i, int k, int[] solution) {
-        int nResources = instance.nResources();
-        int[][] items = instance.items();
-        int[] knapsackCapacity = instance.knapsacks()[k];
-        int[] usedResources = new int[nResources];
-
-        for (int item = 0; item < solution.length; item++) {
-            if (solution[item] == k) {
-                for (int r = 0; r < nResources; r++) {
-                    usedResources[r] += items[item][r];
-                }
-            }
-        }
-
-        for (int r = 0; r < nResources; r++) {
-            if (usedResources[r] + items[i][r] > knapsackCapacity[r]) {
-                return false;
-            }
-        }
-
-        return true;
-    }
 
     private static List<Integer> buildRCL(Instance instance, Set<Integer> availableFamily, double beta) {
         List<Integer> rcl = new ArrayList<>();
@@ -188,16 +163,16 @@ public class GRASP {
     private static int[] localSearch(Instance instance, int[] initialSolution, Random random) throws GRBException {
         int nItems = instance.nItems();
         int[] currentSolution = initialSolution.clone();
-        double currentObjectiveValue = calculateObjectiveValue(instance, currentSolution);
+        double currentObjectiveValue = Utils.calculateObjectiveValue(instance, currentSolution);
 
         for (int iteration = 0; iteration < MAX_LOCAL_SEARCH_ITERATIONS; iteration++) {
             int i = random.nextInt(nItems);
             int k = random.nextInt(instance.nKnapsacks());
 
-            if (isAssignmentValid(instance, i, k, currentSolution)) {
+            if (Utils.isAssignmentValid(instance, i, k, currentSolution)) {
                 int[] newSolution = currentSolution.clone();
                 newSolution[i] = k;
-                double newObjectiveValue = calculateObjectiveValue(instance, newSolution);
+                double newObjectiveValue = Utils.calculateObjectiveValue(instance, newSolution);
 
                 if (newObjectiveValue > currentObjectiveValue) {
                     currentSolution = newSolution;
@@ -208,38 +183,29 @@ public class GRASP {
 
         return currentSolution;
     }
-    private static double calculateObjectiveValue(Instance instance, int[] solution) {
-        double objectiveValue = 0.0;
 
-        final int nItems = instance.nItems();
-        final int nFamilies = instance.nFamilies();
-        final int nKnapsacks = instance.nKnapsacks();
-        final int nResources = instance.nResources();
-        final int[] firstItems = instance.firstItems();
+    private static int[] localSearchWithInitialSolution(Instance instance, int[] initialSolution, Random random) {
+        int nItems = instance.nItems();
+        int[] currentSolution = initialSolution.clone();
+        double currentObjectiveValue = Utils.calculateObjectiveValue(instance, currentSolution);
 
-        final Map<Integer,Set<Integer>> splits = new HashMap<>();
-        final int[][] usedResources = new int[nKnapsacks][nResources];
-        for (int j = 0; j < nFamilies; ++j) {
-            final int firstItem = firstItems[j];
-            final int endItem = j+1 < nFamilies ? firstItems[j+1] : nItems;
-            int itemCount = 0;
-            for (int i = firstItem; i < endItem; ++i) {
-                final int k = solution[i];
-                if (-1 < k && k < nKnapsacks) {
-                    itemCount += 1;
-                    for (int r = 0; r < nResources; ++r) {
-                        usedResources[k][r] += instance.items()[i][r];
-                    }
-                    splits.computeIfAbsent(j, (key) -> new HashSet<>()).add(k);
+        for (int iteration = 0; iteration < MAX_LOCAL_SEARCH_ITERATIONS; iteration++) {
+            int i = random.nextInt(nItems);
+            int k = random.nextInt(instance.nKnapsacks());
+
+            if (Utils.isAssignmentValid(instance, i, k, currentSolution)) {
+                int[] newSolution = currentSolution.clone();
+                newSolution[i] = k;
+                double newObjectiveValue = Utils.calculateObjectiveValue(instance, newSolution);
+
+                if (newObjectiveValue > currentObjectiveValue) {
+                    currentSolution = newSolution;
+                    currentObjectiveValue = newObjectiveValue;
                 }
             }
-
-            final int familySize = endItem - firstItem;
-            if (itemCount == familySize) {
-                objectiveValue += instance.profits()[j] - instance.penalties()[j] * (splits.get(j).size() - 1);
-            }
         }
-        return objectiveValue;
+
+        return currentSolution;
     }
 
     //NON UTILIZZATO
@@ -259,7 +225,7 @@ public class GRASP {
     //TODO: DA CONTROLLARE
     private static int[] tabuSearch(Instance instance, int[] initialSolution, Random random) throws GRBException {
         int[] bestSolution = initialSolution.clone();
-        double bestObjectiveValue = calculateObjectiveValue(instance, bestSolution);
+        double bestObjectiveValue = Utils.calculateObjectiveValue(instance, bestSolution);
 
         int nItems = instance.nItems();
         int tabuListSize = nItems / 2; // Dimensione lista tabu (puoi sperimentare con diverse dimensioni)
@@ -271,12 +237,12 @@ public class GRASP {
             for (int i = 0; i < nItems; i++) {
                 int currentItemFamily = findItemFamily(instance, i);
                 for (int k = 0; k < instance.nKnapsacks(); k++) {
-                    if (isAssignmentValid(instance, i, k, bestSolution) &&
+                    if (Utils.isAssignmentValid(instance, i, k, bestSolution) &&
                             (currentItemFamily == -1 || isWholeFamilyAssigned(instance, currentItemFamily, k, bestSolution)) &&
                             !isInTabuList(i, k, tabuList)) {
                         int[] newSolution = bestSolution.clone();
                         newSolution[i] = k;
-                        double newObjectiveValue = calculateObjectiveValue(instance, newSolution);
+                        double newObjectiveValue = Utils.calculateObjectiveValue(instance, newSolution);
 
                         candidateSolutions.add(newSolution);
                     }
@@ -287,14 +253,14 @@ public class GRASP {
                 break; // Nessuna soluzione candidata valida
             }
 
-            int[] nextSolution = Collections.max(candidateSolutions, Comparator.comparingDouble(sol -> calculateObjectiveValue(instance, sol)));
+            int[] nextSolution = Collections.max(candidateSolutions, Comparator.comparingDouble(sol -> Utils.calculateObjectiveValue(instance, sol)));
 
             tabuList.add(nextSolution);
             if (tabuList.size() > tabuListSize) {
                 tabuList.remove(0); // Rimuovi la soluzione più vecchia dalla lista tabu
             }
 
-            double nextObjectiveValue = calculateObjectiveValue(instance, nextSolution);
+            double nextObjectiveValue = Utils.calculateObjectiveValue(instance, nextSolution);
             if (nextObjectiveValue > bestObjectiveValue) {
                 bestSolution = nextSolution;
                 bestObjectiveValue = nextObjectiveValue;

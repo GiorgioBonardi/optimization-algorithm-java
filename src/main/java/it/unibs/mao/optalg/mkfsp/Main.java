@@ -58,7 +58,7 @@ public class Main {
     }
     paths.sort(null);
 
-    //per eseguire solo example!!!
+    //per eseguire solo un'istanza!!!
     final List<Path> pathsTemp = new ArrayList<>();
     pathsTemp.add(Path.of(INSTANCES_DIR + "/instance01.json"));
 
@@ -75,6 +75,7 @@ public class Main {
     GRBEnv env = null;
     try {
       env = new GRBEnv();
+      //Iterazione su tutte le istanze
       for (final Path path: paths) {
         // TODO: handle all runtime exceptions
 
