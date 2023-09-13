@@ -2,14 +2,11 @@ package it.unibs.mao.optalg.mkfsp.grasp;
 
 import it.unibs.mao.optalg.mkfsp.Instance;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class Utils {
 
-    protected static double calculateObjectiveValue(Instance instance, int[] solution) {
+    public static double calculateObjectiveValue(Instance instance, int[] solution) {
         double objectiveValue = 0.0;
 
         final int nItems = instance.nItems();
@@ -43,7 +40,7 @@ public class Utils {
         return objectiveValue;
     }
 
-    protected static boolean isAssignmentValid(Instance instance, int i, int k, int[] solution) {
+    public static boolean isAssignmentValid(Instance instance, int i, int k, int[] solution) {
         int nResources = instance.nResources();
         int[][] items = instance.items();
         int[] knapsackCapacity = instance.knapsacks()[k];
@@ -64,5 +61,37 @@ public class Utils {
         }
 
         return true;
+    }
+
+    public static List<Integer> rankFamiliesByProfits(Instance instance, Set<Integer> availableFamily) {
+        List<Integer> familyIndices = new ArrayList<>();
+        for (int family : availableFamily) {
+            familyIndices.add(family);
+        }
+
+        familyIndices.sort(Comparator.comparingDouble((Integer familyIndex) -> instance.profits()[familyIndex]).reversed());
+
+        return familyIndices;
+    }
+
+    public static List<Integer> rankFamiliesByPenalties(Instance instance, Set<Integer> availableFamily) {
+        List<Integer> familyIndices = new ArrayList<>();
+        for (int family : availableFamily) {
+            familyIndices.add(family);
+        }
+
+        familyIndices.sort(Comparator.comparingDouble((Integer familyIndex) -> instance.penalties()[familyIndex]).reversed());
+        return familyIndices;
+    }
+
+    public static List<Integer> rankFamiliesByRatioProfitOverPenality(Instance instance, Set<Integer> availableFamily) {
+        List<Integer> familyIndices = new ArrayList<>();
+        for (int family : availableFamily) {
+            familyIndices.add(family);
+        }
+
+        familyIndices.sort(Comparator.comparingDouble((Integer familyIndex) ->
+                instance.profits()[familyIndex]/instance.penalties()[familyIndex]).reversed());
+        return familyIndices;
     }
 }
