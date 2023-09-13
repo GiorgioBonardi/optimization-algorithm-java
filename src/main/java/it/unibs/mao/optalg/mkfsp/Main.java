@@ -28,7 +28,7 @@ public class Main {
   public static final Path OUTPUT_DIR = Path.of("output");
 
   //GRASP
-  public static final int NUM_ITERATION_GRASP = 50;
+  public static final int NUM_ITERATION_GRASP = 100;
 
   /**
    * A simple example of how to use the functions provided in this codebase.
