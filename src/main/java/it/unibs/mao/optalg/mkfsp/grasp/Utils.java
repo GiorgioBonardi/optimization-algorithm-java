@@ -84,6 +84,21 @@ public class Utils {
         return familyIndices;
     }
 
+    public static List<Integer> rankFamiliesBySpecialGain(Instance instance, Set<Integer> availableFamily) {
+        List<Integer> familyIndices = new ArrayList<>();
+        for (int family : availableFamily) {
+            familyIndices.add(family);
+        }
+
+        familyIndices.sort(Comparator.comparingDouble((Integer familyIndex) -> {
+            int endItem = (familyIndex == instance.nFamilies() - 1) ? instance.nItems(): instance.firstItems()[familyIndex+1];
+            int nItems = endItem - instance.firstItems()[familyIndex];
+            double gain = (instance.profits()[familyIndex] - (nItems - 1) * instance.penalties()[familyIndex]);
+            return gain;
+        }).reversed());
+        return familyIndices;
+    }
+
     public static List<Integer> rankFamiliesByRatioProfitOverPenality(Instance instance, Set<Integer> availableFamily) {
         List<Integer> familyIndices = new ArrayList<>();
         for (int family : availableFamily) {
