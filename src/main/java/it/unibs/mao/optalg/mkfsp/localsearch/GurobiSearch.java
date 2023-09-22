@@ -11,7 +11,7 @@ import it.unibs.mao.optalg.mkfsp.Model;
 import it.unibs.mao.optalg.mkfsp.ModelVars;
 
 public class GurobiSearch {
-    private static final double TIME_LIMIT = 30; //TODO: da vedere quanti secondi
+    private static final double TIME_LIMIT = 200; //TODO: da vedere quanti secondi
     private static final double INT_TOLERANCE = 1e-6;
     public static int[] run(Instance instance, int[] initialSolution) {
         GRBEnv env = null;
@@ -25,6 +25,7 @@ public class GurobiSearch {
             model = modelVars.model();
             model.set(GRB.DoubleParam.TimeLimit, TIME_LIMIT);
 
+            /*
             //Fix x_j variables to 1 if family is selected in the Grasp solution
             for (int i = 0; i < firstItems.length; i++) {
                 int item = firstItems[i];
@@ -33,6 +34,19 @@ public class GurobiSearch {
                     modelVars.xvars()[i].set(GRB.DoubleAttr.LB, 1);
                 }
             }
+             */
+
+            //Set initial solution of GRASP in Gurobi
+            for (int i = 0; i < instance.nItems(); ++i) {
+                for (int k = 0; k < instance.nKnapsacks(); ++k) {
+                    if(initialSolution[i] == k) {
+                        modelVars.yvars()[i][k].set(GRB.DoubleAttr.Start, 1);
+                    } else {
+                        modelVars.yvars()[i][k].set(GRB.DoubleAttr.Start, 0);
+                    }
+                }
+            }
+
 
             model.optimize();
 

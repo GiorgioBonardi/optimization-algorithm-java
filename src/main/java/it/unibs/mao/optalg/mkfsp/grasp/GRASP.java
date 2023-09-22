@@ -3,13 +3,13 @@ package it.unibs.mao.optalg.mkfsp.grasp;
 import gurobi.GRBException;
 import it.unibs.mao.optalg.mkfsp.Instance;
 import it.unibs.mao.optalg.mkfsp.localsearch.GurobiSearch;
-import it.unibs.mao.optalg.mkfsp.localsearch.LocalSearch;
-import it.unibs.mao.optalg.mkfsp.localsearch.TabuSearch;
+
 import java.util.*;
 
 public class GRASP {
 
     private static final int MAX_LOCAL_SEARCH_ITERATIONS = 30;
+    private static final int CONSTRUCTIVE_ITERATION = 1000;
     private static final int MAX_TABU_SEARCH_ITERATIONS = 20;
 
     private static final double TIME_LIMIT = 600000;
@@ -33,19 +33,32 @@ public class GRASP {
         while(System.currentTimeMillis() - timer < TIME_LIMIT){
         //for (int iteration = 0; iteration < numIterations; iteration++) {
             solutionConstructivePhase = constructivePhase(instance, random);
+            double objectiveValueConstructivePhase = Utils.calculateObjectiveValue(instance, solutionConstructivePhase);
+            System.out.println("NUOVA ITERAZIONE");
+            System.out.println("OBJ DATO A GUROBI: " + objectiveValueConstructivePhase);
             int[] solutionGurobiSearch = GurobiSearch.run(instance, solutionConstructivePhase);
 
 
             //int[] solutionLocalSearch = LocalSearch.run(instance, solutionConstructivePhase, random, MAX_LOCAL_SEARCH_ITERATIONS);
             //solution = TabuSearch.run(instance, solution, random, MAX_TABU_SEARCH_ITERATIONS);
 
-            double objectiveValueConstructivePhase = Utils.calculateObjectiveValue(instance, solutionConstructivePhase);
             double objectiveGurobiSearch = solutionGurobiSearch != null ? Utils.calculateObjectiveValue(instance, solutionGurobiSearch) : Double.NEGATIVE_INFINITY;
 
+            double solValueTaken = 0;
+            int[] solTaken;
+            if(objectiveGurobiSearch > objectiveValueConstructivePhase) {
+                solValueTaken = objectiveGurobiSearch;
+                solTaken = solutionGurobiSearch;
+                System.out.println("SOL GUROBI");
+            } else {
+                solValueTaken = objectiveValueConstructivePhase;
+                solTaken = solutionConstructivePhase;
+                System.out.println("SOL GRASP");
+            }
 
-            if (objectiveGurobiSearch > bestObjectiveValue) {
-                bestObjectiveValue = objectiveGurobiSearch;
-                bestSolution = solutionGurobiSearch.clone();
+            if (solValueTaken > bestObjectiveValue) {
+                bestObjectiveValue = solValueTaken;
+                bestSolution = solTaken.clone();
             }
 
         }
@@ -56,6 +69,60 @@ public class GRASP {
         return new Solution(bestSolution, bestObjectiveValue, elapsedTimeInSeconds, numIterations, MAX_LOCAL_SEARCH_ITERATIONS);
     }
 
+    public static Solution grasp2(Instance instance, int numIterations) throws GRBException {
+        /*
+        Eseguo la Constructive Phase per X iterazioni
+        Successivamente chiamo Gurobi per Y secondi
+        (Parametri da settare in base all'istanza)
+         */
+        
+        int nItems = instance.nItems();
+        int[] bestSolution = new int[nItems];
+        double bestObjectiveValue = Double.NEGATIVE_INFINITY;
+        Random random = new Random();
+        long startTime = System.nanoTime();
+
+        int[] solutionConstructivePhase = new int[0];
+
+        long timer = System.currentTimeMillis();
+        int contIteration = 1;
+        double timeToBest = 0;
+
+        while(System.currentTimeMillis() - timer < TIME_LIMIT) {
+            System.out.println("ITERAZIONE INTERNA N_" + contIteration);
+            double bestObjectiveConstructivePhase = Double.NEGATIVE_INFINITY;
+            int[] bestSolConstructivePhase = new int[0];
+            for (int iteration = 0; iteration < CONSTRUCTIVE_ITERATION; iteration++) {
+                solutionConstructivePhase = constructivePhase(instance, random);
+                double objectiveValueConstructivePhase = Utils.calculateObjectiveValue(instance, solutionConstructivePhase);
+
+                if(objectiveValueConstructivePhase > bestObjectiveConstructivePhase) {
+                    bestObjectiveConstructivePhase = objectiveValueConstructivePhase;
+                    bestSolConstructivePhase = solutionConstructivePhase;
+                }
+            }
+
+            System.out.println("SOL DATA A GUROBI: " + bestObjectiveConstructivePhase);
+
+            int[] solutionGurobiSearch = GurobiSearch.run(instance, bestSolConstructivePhase);
+            double objectiveGurobiSearch = solutionGurobiSearch != null ? Utils.calculateObjectiveValue(instance, solutionGurobiSearch) : Double.NEGATIVE_INFINITY;
+
+            System.out.println("SOL TROVATA DA GUROBI: " + objectiveGurobiSearch);
+
+            if (objectiveGurobiSearch > bestObjectiveValue) {
+                bestObjectiveValue = objectiveGurobiSearch;
+                bestSolution = solutionGurobiSearch.clone();
+                timeToBest = System.currentTimeMillis() - timer;
+            }
+            contIteration++;
+        }
+
+        System.out.println("TIME TO BEST: " + timeToBest);
+        long endTime = System.nanoTime();
+        double elapsedTimeInSeconds = (endTime - startTime) / 1e9;
+
+        return new Solution(bestSolution, bestObjectiveValue, elapsedTimeInSeconds, numIterations, MAX_LOCAL_SEARCH_ITERATIONS);
+    }
     private static int[] constructivePhase(Instance instance, Random random) {
         int nItems = instance.nItems();
         int nKnapsacks = instance.nKnapsacks();
@@ -108,13 +175,14 @@ public class GRASP {
 
             //calcolo Njr
             int[] necessaryResources = new int[instance.nResources()];
-            for(int r = 0; r < instance.nResources(); r++){
+            for(int r = 0; r < instance.nResources(); r++) {
                 for(int i=firstItem; i < endItem; i++) {
                     necessaryResources[r] += instance.items()[i][r];
                 }
             }
 
             solution = recursiveFitFamily(instance, random, nKnapsacks, randomFamily, itemsToInsert, necessaryResources, solution, availableFamily);
+
             if(solution == null) {
                 solution = prevSolution;
             }
@@ -125,28 +193,38 @@ public class GRASP {
 
     private static int[] recursiveFitFamily(Instance instance, Random random, int nKnapsacks, int randomFamily, Set<Integer> itemsToInsert, int[] necessaryResources, int[] solution, Set<Integer> availableFamily) {
         boolean completelyFit;
-        completelyFit = fitWholeFamilyInKnapsack(nKnapsacks, randomFamily, itemsToInsert, necessaryResources, solution, random, availableFamily, instance);
+        completelyFit = hasWholeFamilyBeenFitted(nKnapsacks, randomFamily, itemsToInsert, necessaryResources, solution, random, availableFamily, instance);
         //Njr ci sta in un knaps? se si ok se no:
+
+        if(!completelyFit && itemsToInsert.size() == 1) return null;
 
         if(!completelyFit){
             //trova il max tra ri/Nji
             int maxItemIndex = -1;
             int maxResourceIndex = -1;
             double maxValue = 0;
-            for(int r = 0; r < instance.nResources(); r++){
+            for(int r = 0; r < instance.nResources(); r++) {
                 for (int i : itemsToInsert) {
+                    //ALTERNATIVE 1:
                     double currentValue = (double) instance.items()[i][r] / necessaryResources[r];
-                    if(currentValue > maxValue){
+                    if(currentValue > maxValue) {
                         maxValue = currentValue;
                         maxItemIndex = i;
                         maxResourceIndex = r;
                     }
+                    //ALTERNATIVA 2:
+                    /*
+                    AL posto che fare /N_jr divido per la risorsa r_esima di ogni knapsack
+                    e prendo il valore maggiore
+                     */
+                    //double currentValue = (double) instance.items()[i][r] / resCapacity[k][r];
+
                 }
             }
             //metto il max nel knapsack nel quale rimangono meno risorse per la specifica risorsa scelta in teoria
             //scelta knapsack
             int minKnapsack = -1;
-            int minGap =  1000;
+            int minGap =  10000; //TODO: mettere double minGap = double.POSITIVE INIFINITY
             int mostDangerousResource = instance.items()[maxItemIndex][maxResourceIndex];
 
             for(int k = 0; k < nKnapsacks; k++){
@@ -194,17 +272,18 @@ public class GRASP {
         }
     }
 
-    private static boolean fitWholeFamilyInKnapsack(int nKnapsacks, int randomFamily, Set<Integer> itemsToInsert ,int[] necessaryResources, int[] solution, Random random, Set<Integer> availableFamily, Instance instance) {
+    private static boolean hasWholeFamilyBeenFitted(int nKnapsacks, int randomFamily, Set<Integer> itemsToInsert , int[] necessaryResources, int[] solution, Random random, Set<Integer> availableFamily, Instance instance) {
         Set<Integer> availableKnapsacks = new HashSet<>();
         for (int k = 0; k < nKnapsacks; k++) {
             availableKnapsacks.add(k);
         }
+
         while(!availableKnapsacks.isEmpty()) {
             //da cambiare, non va preso random
             int randomKnapsack = getRandomKnapsack(availableKnapsacks, random);
             int[] knapsackCapacity = knapRes.getResources().get(randomKnapsack);
 
-            if (familyCompletelyFitKnapsack(necessaryResources, knapsackCapacity, randomKnapsack, instance)) {
+            if (wholeFamilyFits(necessaryResources, knapsackCapacity, instance)) {
                 //se la famiglia ci sta completamente allora inserisco tutti i suoi item nel knapsack
                 /*
                 for(int i=firstItem; i < endItem; i++) {
@@ -214,7 +293,8 @@ public class GRASP {
                  */
                 for (int i : itemsToInsert) {
                     solution[i] = randomKnapsack;
-                    knapRes.removeResources(instance.items()[i], randomKnapsack); //possibile ottimizzazione
+                    //update residual capacity
+                    knapRes.removeResources(instance.items()[i], randomKnapsack);
                 }
                 //tolgo la famiglia da quelle disponibili
                 availableFamily.remove(randomFamily);
@@ -226,7 +306,7 @@ public class GRASP {
         return false;
     }
 
-    private static boolean familyCompletelyFitKnapsack(int[] necessaryResources, int[] knapsackCapacity, int k, Instance instance){
+    private static boolean wholeFamilyFits(int[] necessaryResources, int[] knapsackCapacity, Instance instance){
         int nResources = instance.nResources();
         /*
         int[][] items = instance.items();
