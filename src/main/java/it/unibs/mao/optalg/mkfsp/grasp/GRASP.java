@@ -204,23 +204,34 @@ public class GRASP {
             int maxResourceIndex = -1;
             double maxValue = 0;
             for(int r = 0; r < instance.nResources(); r++) {
-                for (int i : itemsToInsert) {
-                    //ALTERNATIVE 1:
+                /*for (int i : itemsToInsert) {
+                    //ALTERNATIVA 1:
                     double currentValue = (double) instance.items()[i][r] / necessaryResources[r];
                     if(currentValue > maxValue) {
                         maxValue = currentValue;
                         maxItemIndex = i;
                         maxResourceIndex = r;
-                    }
-                    //ALTERNATIVA 2:
+                }
+
+                 */
+                //ALTERNATIVA 2:
                     /*
                     AL posto che fare /N_jr divido per la risorsa r_esima di ogni knapsack
                     e prendo il valore maggiore
                      */
-                    //double currentValue = (double) instance.items()[i][r] / resCapacity[k][r];
-
+                //double currentValue = (double) instance.items()[i][r] / resCapacity[k][r];
+                for (int i : itemsToInsert) {
+                    for (int k = 0; k < nKnapsacks; k++) {
+                        double currentValue = (double) instance.items()[i][r] / knapRes.getResources().get(k)[r];
+                        if (currentValue > maxValue) {
+                            maxValue = currentValue;
+                            maxItemIndex = i;
+                            maxResourceIndex = r;
+                        }
+                    }
                 }
             }
+
             //metto il max nel knapsack nel quale rimangono meno risorse per la specifica risorsa scelta in teoria
             //scelta knapsack
             int minKnapsack = -1;
