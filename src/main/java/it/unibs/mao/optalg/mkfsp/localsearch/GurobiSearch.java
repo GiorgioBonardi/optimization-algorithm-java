@@ -12,7 +12,7 @@ import it.unibs.mao.optalg.mkfsp.ModelVars;
 
 public class GurobiSearch {
     private static final double INT_TOLERANCE = 1e-6;
-    public static int[] run(Instance instance, int[] initialSolution, double timeLimit) {
+    public static int[] run(Instance instance, int[] initialSolution, double timeLimit, HashMap<Integer, Integer> splitForFamily) {
         GRBEnv env = null;
         GRBModel model = null;
         int[] firstItems = instance.firstItems();
@@ -26,13 +26,15 @@ public class GurobiSearch {
 
             //dovrei provare a fissare solo le X famiglie migliori
             //Fix x_j variables to 1 if family is selected in the Grasp solution
-            for (int i = 0; i < firstItems.length; i++) {
+            /*for (int i = 0; i < firstItems.length; i++) {
                 int item = firstItems[i];
                 if (initialSolution[item] != -1) {
                     //set xvars[i] LB = 1
                     modelVars.xvars()[i].set(GRB.DoubleAttr.LB, 1);
                 }
             }
+
+             */
 
             //Set initial solution of GRASP in Gurobi
             for (int i = 0; i < instance.nItems(); ++i) {
@@ -45,8 +47,9 @@ public class GurobiSearch {
                 }
             }
 
-
-
+            for (int j : splitForFamily.keySet()) {
+                model.addConstr(modelVars.svars()[j], GRB.LESS_EQUAL, splitForFamily.get(j), "_splits");
+            }
 
             model.optimize();
 
