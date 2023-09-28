@@ -12,13 +12,16 @@ public class GRASP {
     private static final int CONSTRUCTIVE_ITERATION = 1000;
     private static final int MAX_TABU_SEARCH_ITERATIONS = 20;
 
-    private static final double TIME_LIMIT = 600000;
+    private static final double TIME_LIMIT_GRASP = 200000; //milliseconds
+    private static final double DEFAULT_TIME_LIMIT_GUROBI = 400; //seconds
     // creare una lista di beta
     private static final double[] BETA_LIST = {0.1, 0.2, 0.3};
     private static final double BETA_RCL = 0.3;
     private static boolean localsearchIsUsed = true;
     private static boolean tabusearchIsUsed = false;
     private static KnapsacksResource knapRes = null;
+    private static final int MAX_STALE_ITERATIONS = 2000;
+    private static final long STALE_TIME = 30000; //milliseconds
     public static Solution grasp(Instance instance, int numIterations) throws GRBException {
 
         int nItems = instance.nItems();
@@ -30,13 +33,13 @@ public class GRASP {
         int[] solutionConstructivePhase = new int[0];
 
         long timer = System.currentTimeMillis();
-        while(System.currentTimeMillis() - timer < TIME_LIMIT){
+        while(System.currentTimeMillis() - timer < TIME_LIMIT_GRASP){
         //for (int iteration = 0; iteration < numIterations; iteration++) {
             solutionConstructivePhase = constructivePhase(instance, random);
             double objectiveValueConstructivePhase = Utils.calculateObjectiveValue(instance, solutionConstructivePhase);
             System.out.println("NUOVA ITERAZIONE");
             System.out.println("OBJ DATO A GUROBI: " + objectiveValueConstructivePhase);
-            int[] solutionGurobiSearch = GurobiSearch.run(instance, solutionConstructivePhase);
+            int[] solutionGurobiSearch = GurobiSearch.run(instance, solutionConstructivePhase, 0);
 
 
             //int[] solutionLocalSearch = LocalSearch.run(instance, solutionConstructivePhase, random, MAX_LOCAL_SEARCH_ITERATIONS);
@@ -71,8 +74,8 @@ public class GRASP {
 
     public static Solution grasp2(Instance instance, int numIterations) throws GRBException {
         /*
-        Eseguo la Constructive Phase per X iterazioni
-        Successivamente chiamo Gurobi per Y secondi
+        Eseguo la Constructive Phase per TIME_LIMIT_GRASP (oppure esce per stale iteration)
+        Successivamente chiamo Gurobi per Y secondi + tempo rimanente
         (Parametri da settare in base all'istanza)
          */
         
@@ -81,47 +84,62 @@ public class GRASP {
         double bestObjectiveValue = Double.NEGATIVE_INFINITY;
         Random random = new Random();
         long startTime = System.nanoTime();
+        //int nStale = 0;
 
         int[] solutionConstructivePhase = new int[0];
 
         long timer = System.currentTimeMillis();
+        long timerStale = timer;
         int contIteration = 1;
         double timeToBest = 0;
+        int[] bestSolConstructivePhase = new int[0];
+        double bestObjectiveConstructivePhase = Double.NEGATIVE_INFINITY;
+        double elapsedTimeMillis = System.currentTimeMillis() - timer;
 
-        while(System.currentTimeMillis() - timer < TIME_LIMIT) {
-            System.out.println("ITERAZIONE INTERNA N_" + contIteration);
-            double bestObjectiveConstructivePhase = Double.NEGATIVE_INFINITY;
-            int[] bestSolConstructivePhase = new int[0];
-            for (int iteration = 0; iteration < CONSTRUCTIVE_ITERATION; iteration++) {
-                solutionConstructivePhase = constructivePhase(instance, random);
-                double objectiveValueConstructivePhase = Utils.calculateObjectiveValue(instance, solutionConstructivePhase);
+        while(elapsedTimeMillis < TIME_LIMIT_GRASP && (System.currentTimeMillis() - timerStale) < STALE_TIME) {
+            //System.out.println("ITERAZIONE INTERNA N_" + contIteration);
+            solutionConstructivePhase = constructivePhase(instance, random);
+            double objectiveValueConstructivePhase = Utils.calculateObjectiveValue(instance, solutionConstructivePhase);
 
-                if(objectiveValueConstructivePhase > bestObjectiveConstructivePhase) {
-                    bestObjectiveConstructivePhase = objectiveValueConstructivePhase;
-                    bestSolConstructivePhase = solutionConstructivePhase;
-                }
+            if(objectiveValueConstructivePhase > bestObjectiveConstructivePhase) {
+                bestObjectiveConstructivePhase = objectiveValueConstructivePhase;
+                bestSolConstructivePhase = solutionConstructivePhase;
+                timerStale = System.currentTimeMillis();
             }
 
-            System.out.println("SOL DATA A GUROBI: " + bestObjectiveConstructivePhase);
+            contIteration++;
+            elapsedTimeMillis = System.currentTimeMillis() - timer;
+        }
+        //System.out.println("SOL DATA A GUROBI: " + bestObjectiveConstructivePhase);
+        double additionalSeconds = (TIME_LIMIT_GRASP - elapsedTimeMillis) / 1000;
 
-            int[] solutionGurobiSearch = GurobiSearch.run(instance, bestSolConstructivePhase);
-            double objectiveGurobiSearch = solutionGurobiSearch != null ? Utils.calculateObjectiveValue(instance, solutionGurobiSearch) : Double.NEGATIVE_INFINITY;
+        if(System.currentTimeMillis() - timerStale >= STALE_TIME) {
+            System.out.println("GRASP ended because of STALE Iterations! Additional time to Gurobi: " + additionalSeconds);
+        } else {
+            System.out.println("GRASP ended because of time limits");
+        }
 
-            System.out.println("SOL TROVATA DA GUROBI: " + objectiveGurobiSearch);
+        System.out.println("Obj Value GRASP: " + bestObjectiveConstructivePhase);
 
-            if (objectiveGurobiSearch > bestObjectiveValue) {
+        double totalTimeLimitGurobi = DEFAULT_TIME_LIMIT_GUROBI + additionalSeconds;
+
+        int[] solutionGurobiSearch = GurobiSearch.run(instance, bestSolConstructivePhase, totalTimeLimitGurobi);
+        double objectiveGurobiSearch = solutionGurobiSearch != null ? Utils.calculateObjectiveValue(instance, solutionGurobiSearch) : Double.NEGATIVE_INFINITY;
+
+        System.out.println("SOL TROVATA DA GUROBI: " + objectiveGurobiSearch);
+
+            /*if (objectiveGurobiSearch > bestObjectiveValue) {
                 bestObjectiveValue = objectiveGurobiSearch;
                 bestSolution = solutionGurobiSearch.clone();
                 timeToBest = System.currentTimeMillis() - timer;
             }
-            contIteration++;
-        }
 
+             */
         System.out.println("TIME TO BEST: " + timeToBest);
         long endTime = System.nanoTime();
         double elapsedTimeInSeconds = (endTime - startTime) / 1e9;
 
-        return new Solution(bestSolution, bestObjectiveValue, elapsedTimeInSeconds, numIterations, MAX_LOCAL_SEARCH_ITERATIONS);
+        return new Solution(solutionGurobiSearch, objectiveGurobiSearch, elapsedTimeInSeconds, numIterations, MAX_LOCAL_SEARCH_ITERATIONS);
     }
     private static int[] constructivePhase(Instance instance, Random random) {
         int nItems = instance.nItems();
@@ -376,7 +394,7 @@ public class GRASP {
         */
 
         //List<Integer> rankedFamilies = Utils.rankFamiliesByRatioProfitOverPenality(instance, availableFamily);
-        List<Integer> rankedFamilies = Utils.rankFamiliesByPenalties(instance, availableFamily);
+        List<Integer> rankedFamilies = Utils.rankFamiliesBySpecialGain(instance, availableFamily);
 
         int numBestElements = (int) (rankedFamilies.size() * beta);
         numBestElements = numBestElements > 0 ? numBestElements : 1;

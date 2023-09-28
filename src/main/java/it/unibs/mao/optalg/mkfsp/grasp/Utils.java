@@ -93,7 +93,7 @@ public class Utils {
         familyIndices.sort(Comparator.comparingDouble((Integer familyIndex) -> {
             int endItem = (familyIndex == instance.nFamilies() - 1) ? instance.nItems(): instance.firstItems()[familyIndex+1];
             int nItems = endItem - instance.firstItems()[familyIndex];
-            double gain = (instance.profits()[familyIndex] - (nItems - 1) * instance.penalties()[familyIndex]);
+            double gain = (instance.profits()[familyIndex] - (double) ((nItems - 1) * instance.penalties()[familyIndex]) / 2);
             return gain;
         }).reversed());
         return familyIndices;

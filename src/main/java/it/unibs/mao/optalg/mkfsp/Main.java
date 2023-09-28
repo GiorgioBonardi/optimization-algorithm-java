@@ -76,7 +76,7 @@ public class Main {
     try {
       env = new GRBEnv();
       //Iterazione su tutte le istanze
-      for (final Path path: pathsTemp) {
+      for (final Path path: paths) {
         // TODO: handle all runtime exceptions
 
         System.out.println("------------------------------------------------------------");
