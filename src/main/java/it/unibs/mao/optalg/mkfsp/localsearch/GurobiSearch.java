@@ -5,6 +5,12 @@ import it.unibs.mao.optalg.mkfsp.FeasibilityCheck;
 import it.unibs.mao.optalg.mkfsp.Instance;
 import it.unibs.mao.optalg.mkfsp.grasp.Utils;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 import it.unibs.mao.optalg.mkfsp.Model;
@@ -12,7 +18,16 @@ import it.unibs.mao.optalg.mkfsp.ModelVars;
 
 public class GurobiSearch {
     private static final double INT_TOLERANCE = 1e-6;
-    public static int[] run(Instance instance, int[] initialSolution, double timeLimit, HashMap<Integer, Integer> splitForFamily) {
+    public static final Path OUTPUT_DIR = Path.of("output");
+    public static final DateTimeFormatter DTF = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+            .withZone(ZoneOffset.UTC);
+    public static int[] run(Instance instance, int[] initialSolution, double timeLimit, HashMap<Integer, Integer> splitForFamily) throws GRBException, IOException  {
+
+        final Instant now = Instant.ofEpochMilli(System.currentTimeMillis());
+        final String executionId = DTF.format(now).replace(':', '_');
+        final Path outputDir = OUTPUT_DIR.resolve(executionId);
+        Files.createDirectories(outputDir);
+
         GRBEnv env = null;
         GRBModel model = null;
         int[] firstItems = instance.firstItems();
@@ -22,8 +37,9 @@ public class GurobiSearch {
             env.set(GRB.IntParam.OutputFlag, 1);
             final ModelVars modelVars = Model.build(instance, env);
             model = modelVars.model();
-            model.set(GRB.DoubleParam.TimeLimit, timeLimit);
+            model.set(GRB.StringParam.LogFile, outputDir.resolve(instance.id() + ".log").toString());
 
+            model.set(GRB.DoubleParam.TimeLimit, timeLimit);
             //dovrei provare a fissare solo le X famiglie migliori
             //Fix x_j variables to 1 if family is selected in the Grasp solution
             /*for (int i = 0; i < firstItems.length; i++) {
@@ -35,6 +51,26 @@ public class GurobiSearch {
             }
 
              */
+
+            List<Integer> familiesToSet = Utils.getBestFamiliesUsedBySplit(instance, initialSolution);
+            List<Integer> familiesToBan = Utils.getWorstFamiliesNotUsedBySpecialGain(instance, initialSolution);
+
+            for (int i = 0; i < instance.nFamilies(); ++i) {
+
+
+                if(familiesToSet.contains(i)) {
+                    modelVars.xvars()[i].set(GRB.DoubleAttr.LB, 1);
+                } else if(familiesToBan.contains(i)) {
+                    modelVars.xvars()[i].set(GRB.DoubleAttr.UB, 0);
+                }
+
+                /*
+                if(familiesToBan.contains(i)) {
+                    modelVars.xvars()[i].set(GRB.DoubleAttr.UB, 0);
+                }
+                */
+            }
+
 
             //Set initial solution of GRASP in Gurobi
             for (int i = 0; i < instance.nItems(); ++i) {

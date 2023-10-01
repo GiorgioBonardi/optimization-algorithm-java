@@ -4,6 +4,7 @@ import gurobi.GRBException;
 import it.unibs.mao.optalg.mkfsp.Instance;
 import it.unibs.mao.optalg.mkfsp.localsearch.GurobiSearch;
 
+import java.io.IOException;
 import java.util.*;
 
 public class GRASP {
@@ -13,7 +14,7 @@ public class GRASP {
     private static final int MAX_TABU_SEARCH_ITERATIONS = 20;
 
     private static final double TIME_LIMIT_GRASP = 200000; //milliseconds
-    private static final double DEFAULT_TIME_LIMIT_GUROBI = 400; //seconds
+    private static final double DEFAULT_TIME_LIMIT_GUROBI = 600; //seconds
     // creare una lista di beta
     private static final double[] BETA_LIST = {0.1, 0.2, 0.3};
     private static final double BETA_RCL = 0.3;
@@ -22,7 +23,7 @@ public class GRASP {
     private static KnapsacksResource knapRes = null;
     private static final int MAX_STALE_ITERATIONS = 2000;
     private static final long STALE_TIME = 30000; //milliseconds
-    public static Solution grasp(Instance instance, int numIterations) throws GRBException {
+    public static Solution grasp(Instance instance, int numIterations) throws GRBException, IOException {
 
         int nItems = instance.nItems();
         int[] bestSolution = new int[nItems];
@@ -72,7 +73,7 @@ public class GRASP {
         return new Solution(bestSolution, bestObjectiveValue, elapsedTimeInSeconds, numIterations, MAX_LOCAL_SEARCH_ITERATIONS);
     }
 
-    public static Solution grasp2(Instance instance, int numIterations) throws GRBException {
+    public static Solution grasp2(Instance instance, int numIterations) throws GRBException, IOException {
         /*
         Eseguo la Constructive Phase per TIME_LIMIT_GRASP (oppure esce per stale iteration)
         Successivamente chiamo Gurobi per Y secondi + tempo rimanente
@@ -123,7 +124,7 @@ public class GRASP {
 
         double totalTimeLimitGurobi = DEFAULT_TIME_LIMIT_GUROBI + additionalSeconds;
 
-        HashMap<Integer, Integer> splitForFamilies = calculateSplitForEachFamily(instance, bestSolConstructivePhase);
+        HashMap<Integer, Integer> splitForFamilies = Utils.calculateSplitForEachFamily(instance, bestSolConstructivePhase);
 
         int[] solutionGurobiSearch = GurobiSearch.run(instance, bestSolConstructivePhase, totalTimeLimitGurobi, splitForFamilies);
         double objectiveGurobiSearch = solutionGurobiSearch != null ? Utils.calculateObjectiveValue(instance, solutionGurobiSearch) : Double.NEGATIVE_INFINITY;
@@ -398,7 +399,7 @@ public class GRASP {
         List<Integer> rankedFamilies = (strategy == 0) ? Utils.rankFamiliesByPenalties(instance, availableFamily) : Utils.rankFamiliesByProfits(instance, availableFamily);
         */
 
-        //List<Integer> rankedFamilies = Utils.rankFamiliesByRatioProfitOverPenality(instance, availableFamily);
+        //List<Integer> rankedFamilies = Utils.rankFamiliesBySpecialGain(instance, availableFamily);
         List<Integer> rankedFamilies = Utils.rankFamiliesByPenalties(instance, availableFamily);
 
         int numBestElements = (int) (rankedFamilies.size() * beta);
@@ -434,38 +435,5 @@ public class GRASP {
 
         int numSplits = (int) Arrays.stream(knapsackCounts).filter(count -> count > 0).count() - 1;
         return instance.penalties()[family] * numSplits;
-    }
-
-    public static HashMap<Integer, Integer> calculateSplitForEachFamily(Instance instance, int[] solution) {
-        HashMap<Integer, Integer> splitForFamily = new HashMap<>();
-
-        final int nItems = instance.nItems();
-        final int nFamilies = instance.nFamilies();
-        final int nKnapsacks = instance.nKnapsacks();
-        final int nResources = instance.nResources();
-        final int[] firstItems = instance.firstItems();
-
-        final Map<Integer, Set<Integer>> splits = new HashMap<>();
-        final int[][] usedResources = new int[nKnapsacks][nResources];
-        for (int j = 0; j < nFamilies; ++j) {
-            final int firstItem = firstItems[j];
-            if (solution[firstItem] != -1) {
-                final int endItem = j+1 < nFamilies ? firstItems[j+1] : nItems;
-
-                for (int i = firstItem; i < endItem; ++i) {
-                    final int k = solution[i];
-                    if (-1 < k && k < nKnapsacks) {
-                        for (int r = 0; r < nResources; ++r) {
-                            usedResources[k][r] += instance.items()[i][r];
-                        }
-                        splits.computeIfAbsent(j, (key) -> new HashSet<>()).add(k);
-                    }
-                }
-
-                splitForFamily.put(j, splits.get(j).size()-1);
-            }
-        }
-
-        return splitForFamily;
     }
 }
