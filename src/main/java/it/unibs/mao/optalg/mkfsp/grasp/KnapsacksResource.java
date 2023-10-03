@@ -36,5 +36,10 @@ public class KnapsacksResource {
             this.resources.get(knapsack)[r] -= itemResources[r];
         }
     }
+    public void addResources(int[] itemResources, int knapsack) {
+        for(int r = 0; r < itemResources.length; r++){
+            this.resources.get(knapsack)[r] += itemResources[r];
+        }
+    }
 }
 
