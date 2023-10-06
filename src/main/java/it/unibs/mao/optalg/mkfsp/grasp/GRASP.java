@@ -14,7 +14,7 @@ public class GRASP {
     private static final int CONSTRUCTIVE_ITERATION = 1000;
     private static final int MAX_TABU_SEARCH_ITERATIONS = 20;
 
-    private static final double TIME_LIMIT_GRASP = 600000; //milliseconds
+    private static final double TIME_LIMIT_GRASP = 200000; //milliseconds
     private static final double DEFAULT_TIME_LIMIT_GUROBI = 600; //seconds
     // creare una lista di beta
     private static final double[] BETA_LIST = {0.1, 0.2, 0.3};
@@ -220,11 +220,12 @@ public class GRASP {
                 countInsertedFamilies++;
             }
 
-
+            /*
             if (countInsertedFamilies == 3) {
                 defragmentationKnapsack(instance, solution, knapRes);
                 countInsertedFamilies = 0;
             }
+             */
         }
 
         return solution;

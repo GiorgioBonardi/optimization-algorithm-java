@@ -87,7 +87,8 @@ public class Main {
 
         // Call GRASP algorithm
         //perchè GRASP è statico ha senso?
-        Solution solution = GRASP.grasp(instance, NUM_ITERATION_GRASP);
+
+        Solution solution = GRASP.grasp2(instance, NUM_ITERATION_GRASP);
 
         //Feasibility check
         final FeasibilityCheck check = instance.checkFeasibility(solution.getSolution(), solution.getObjectiveValue());

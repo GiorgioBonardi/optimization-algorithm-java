@@ -113,7 +113,7 @@ public class Utils {
         // sono in ordine decrescente
         List<Integer> familiesNotUsedBySpecialGain = rankFamiliesBySpecialGain(instance, availableFamilies);
 
-        int halfIndex = (int) (familiesNotUsedBySpecialGain.size() * 75);
+        int halfIndex = (int) (familiesNotUsedBySpecialGain.size() * 0.75);
         // Più è basso più famiglie prendo
 
         // Estrai la prima metà della lista
