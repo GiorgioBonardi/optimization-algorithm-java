@@ -20,15 +20,12 @@ import it.unibs.mao.optalg.mkfsp.grasp.Solution;
 
 public class Main {
   private static final double INT_TOLERANCE = 1e-6;
-  private static final double TIME_LIMIT = 60;
+  //private static final double TIME_LIMIT = 60;
   private static final DateTimeFormatter DTF = DateTimeFormatter.ISO_LOCAL_DATE_TIME
       .withZone(ZoneOffset.UTC);
 
   public static final Path INSTANCES_DIR = Path.of("instances");
   public static final Path OUTPUT_DIR = Path.of("output");
-
-  //GRASP
-  public static final int NUM_ITERATION_GRASP = 100;
 
   /**
    * A simple example of how to use the functions provided in this codebase.
@@ -60,12 +57,11 @@ public class Main {
 
     //per eseguire solo un'istanza!!!
     final List<Path> pathsTemp = new ArrayList<>();
-    pathsTemp.add(Path.of(INSTANCES_DIR + "/instance01.json"));
+    pathsTemp.add(Path.of(INSTANCES_DIR + "/instance11.json"));
 
     // Solve each instance
     System.out.print(
-        "Solving " + paths.size() + " instances with a time limit of " + TIME_LIMIT +
-        " seconds (execution id: '" + executionId + "').\nPress ENTER to continue"
+        "Solving " + paths.size() + " instances, (execution id: '" + executionId + "').\nPress ENTER to continue"
     );
     System.in.read();
 
@@ -76,7 +72,7 @@ public class Main {
     try {
       env = new GRBEnv();
       //Iterazione su tutte le istanze
-      for (final Path path: paths) {
+      for (final Path path: pathsTemp) {
         // TODO: handle all runtime exceptions
 
         System.out.println("------------------------------------------------------------");
@@ -87,10 +83,9 @@ public class Main {
 
         // Call GRASP algorithm
         //perchè GRASP è statico ha senso?
+        Solution solution = GRASP.grasp(instance);
 
-        Solution solution = GRASP.grasp2(instance, NUM_ITERATION_GRASP);
-
-        //Feasibility check
+        //Feasibility check for Gurobi
         final FeasibilityCheck check = instance.checkFeasibility(solution.getSolution(), solution.getObjectiveValue());
 
         System.out.println("\nSolution: " + solution.getObjectiveValue() + " (valid: " + check.isValid() + ")");
@@ -167,6 +162,8 @@ public class Main {
 */
       }
 
+    } catch (RuntimeException e) {
+      System.out.println(e.getMessage());
     } finally {
       if (env != null) {
         env.dispose();

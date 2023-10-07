@@ -3,6 +3,7 @@ package it.unibs.mao.optalg.mkfsp.grasp;
 import it.unibs.mao.optalg.mkfsp.Instance;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Utils {
 
@@ -156,16 +157,11 @@ public class Utils {
         return familyIndices;
     }
 
-    public static List<Integer> rankFamiliesByPenalties(Instance instance, Set<Integer> availableFamily) {
-        List<Integer> familyIndices = new ArrayList<>();
-        for (int family : availableFamily) {
-            familyIndices.add(family);
-        }
-
-        familyIndices.sort(Comparator.comparingDouble((Integer familyIndex) -> instance.penalties()[familyIndex]).reversed());
-        return familyIndices;
+    public static List<Integer> sortFamiliesByPenalties(Instance instance, Set<Integer> availableFamily) {
+        return availableFamily.stream()
+                .sorted(Comparator.comparingDouble((Integer familyIndex) -> instance.penalties()[familyIndex]).reversed())
+                .collect(Collectors.toCollection(LinkedList::new));
     }
-
     public static List<Integer> rankFamiliesBySpecialGain(Instance instance, Set<Integer> availableFamily) {
         List<Integer> familyIndices = new ArrayList<>();
         for (int family : availableFamily) {
