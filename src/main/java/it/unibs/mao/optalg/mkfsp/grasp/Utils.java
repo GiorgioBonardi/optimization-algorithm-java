@@ -187,4 +187,16 @@ public class Utils {
                 instance.profits()[familyIndex]/instance.penalties()[familyIndex]).reversed());
         return familyIndices;
     }
+
+    public static List<Integer> rankItemsByResource(Instance instance, Set<Integer> availableItems, int r) {
+        List<Integer> itemIndices = new ArrayList<>();
+        for (Integer item : availableItems) {
+            itemIndices.add(item);
+        }
+
+        itemIndices.sort(Comparator.comparingDouble((Integer itemIndex) ->
+                instance.items()[itemIndex][r]));
+        //familyIndices.sort(Comparator.comparingDouble((Integer familyIndex) -> instance.penalties()[familyIndex]).reversed());
+        return itemIndices;
+    }
 }

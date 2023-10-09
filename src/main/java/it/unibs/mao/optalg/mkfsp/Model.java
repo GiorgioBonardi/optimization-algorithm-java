@@ -6,6 +6,11 @@ import gurobi.GRBException;
 import gurobi.GRBLinExpr;
 import gurobi.GRBModel;
 import gurobi.GRBVar;
+import it.unibs.mao.optalg.mkfsp.grasp.Utils;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * A utility class with one static method that builds the Gurobi model for
@@ -38,6 +43,7 @@ public class Model {
     final int[] firstItems = instance.firstItems();
     final int[][] items = instance.items();
     final int[][] knapsacks = instance.knapsacks();
+    final int nResources = instance.nResources();
 
     // Add model variables
     final GRBVar[] xvars = new GRBVar[nFamilies];
@@ -75,6 +81,26 @@ public class Model {
 
       // Add logical constraints between yvars and zvars
       for (int k = 0; k < nKnapsacks; ++k) {
+        int nMaxItems = endItem - firstItem; // Initialize nMaxItems to Family cardinality
+
+        for (int r = 0; r < nResources; ++r) {
+          int totalConsumed = 0; // Initialize total resource consumption
+
+          //Add ascending sorting of the items !!!!
+          Set<Integer> availableItems = new HashSet<>();
+          for (int i = firstItem; i < endItem; ++i) {
+            availableItems.add(i);
+          }
+
+          List<Integer> itemList = Utils.rankItemsByResource(instance, availableItems, r);
+
+          for (int i = 0; i < itemList.size(); ++i) {
+            totalConsumed = totalConsumed + items[i][r];
+            if(totalConsumed > knapsacks[k][r]) {
+              nMaxItems = Math.min(nMaxItems, i);
+            }
+          }
+        }
         zsLhs.addTerm(1, zvars[j][k]);
 
         final GRBLinExpr yzLhs = new GRBLinExpr();
@@ -82,12 +108,17 @@ public class Model {
           yzLhs.addTerm(1, yvars[i][k]);
         }
         final GRBLinExpr _rhs = new GRBLinExpr();
-        _rhs.addTerm(endItem - firstItem, zvars[j][k]);
+        //_rhs.addTerm(endItem - firstItem, zvars[j][k]);
+        _rhs.addTerm(nMaxItems, zvars[j][k]);
         model.addConstr(yzLhs, GRB.LESS_EQUAL, _rhs, "_z");
       }
 
+
       // Add logical constraints between zvars and svars
       model.addConstr(zsLhs, GRB.LESS_EQUAL, svars[j], "_s");
+
+      // Add new constraints between svars and cardinality of Fj
+      model.addConstr(svars[j], GRB.LESS_EQUAL, endItem - firstItem, "_new");
     }
 
     // Add maximum capacity constraints
