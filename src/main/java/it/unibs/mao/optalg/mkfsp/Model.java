@@ -118,7 +118,7 @@ public class Model {
       model.addConstr(zsLhs, GRB.LESS_EQUAL, svars[j], "_s");
 
       // Add new constraints between svars and cardinality of Fj
-      model.addConstr(svars[j], GRB.LESS_EQUAL, endItem - firstItem, "_new");
+      model.addConstr(svars[j], GRB.LESS_EQUAL, (endItem - firstItem) - 1, "_new");
     }
 
     // Add maximum capacity constraints
