@@ -57,7 +57,7 @@ public class Main {
 
     //per eseguire solo un'istanza!!!
     final List<Path> pathsTemp = new ArrayList<>();
-    pathsTemp.add(Path.of(INSTANCES_DIR + "/instance11.json"));
+    pathsTemp.add(Path.of(INSTANCES_DIR + "/instance01.json"));
 
     // Solve each instance
     System.out.print(

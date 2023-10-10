@@ -184,9 +184,19 @@ public class GRASP {
                 }
             }
 
+            /*
             try {
-                solution = recursiveFitFamily(instance, itemsToInsert, necessaryResources, solution, random);
+                solution = recursiveFitFamily(instance, randomFamily, itemsToInsert, necessaryResources, solution, random);
+                //solution = iterativeFitFamily(instance, randomFamily, itemsToInsert, necessaryResources, solution, random);
             } catch (NoSolutionFoundException e) {
+                solution = prevSolution;
+            }
+
+             */
+
+            solution = recursiveFitFamily(instance, randomFamily, itemsToInsert, necessaryResources, solution, random);
+            //solution = iterativeFitFamily(instance, randomFamily, itemsToInsert, necessaryResources, solution, random);
+            if(solution == null) {
                 solution = prevSolution;
             }
 
@@ -211,13 +221,27 @@ public class GRASP {
         return solution;
     }
 
+    /*
     public static class NoSolutionFoundException extends RuntimeException {
         public NoSolutionFoundException() {
         }
     }
 
-    private static int[] recursiveFitFamily(Instance instance, Set<Integer> itemsToInsert, int[] necessaryResources, int[] solution, Random random) throws NoSolutionFoundException{
-        int knapsackForWholeFamily = findKnapsackToFitWholeFamily(instance, necessaryResources, random);
+     */
+
+    private static int[] recursiveFitFamily(Instance instance, int family, Set<Integer> itemsToInsert, int[] necessaryResources, int[] solution, Random random) {
+        //First you try to insert the problematic item into an used knapsack
+        ArrayList<Integer> knapsackUsed = getKnapsackUsedForFamily(instance, solution, family);
+        int knapsackForWholeFamily = findKnapsackToFitWholeFamily(instance, necessaryResources, knapsackUsed, random);
+
+        if (knapsackForWholeFamily == -1) {
+            ArrayList<Integer> availableKnapsacks = new ArrayList<>();
+            for (int k = 0; k < instance.nKnapsacks(); k++) {
+                availableKnapsacks.add(k);
+            }
+            knapsackForWholeFamily = findKnapsackToFitWholeFamily(instance, necessaryResources, availableKnapsacks, random);
+
+        }
         if(knapsackForWholeFamily != -1) {
             for (int i : itemsToInsert) {
                 solution[i] = knapsackForWholeFamily;
@@ -228,7 +252,7 @@ public class GRASP {
         }
 
         if(itemsToInsert.size() == 1)
-            throw new NoSolutionFoundException();
+            return null;
 
         int[] indexes = findMostProblematicItem(instance, itemsToInsert, necessaryResources);
         int maxItemIndex = indexes[0];
@@ -237,7 +261,7 @@ public class GRASP {
         int selectedKnapsack = findBestKnapsackForProblematicItem(instance, maxItemIndex, maxResourceIndex);
 
         if (selectedKnapsack == -1) {
-            throw new NoSolutionFoundException(); //TODO: credo succeda "spesso". Non so se va bene fare throw di un expection "spesso"
+            return null; //TODO: credo succeda "spesso". Non so se va bene fare throw di un expection "spesso"
         } else {
             //Update solution and resources
             solution[maxItemIndex] = selectedKnapsack;
@@ -248,8 +272,55 @@ public class GRASP {
             }
             knapRes.removeResources(instance.items()[maxItemIndex], selectedKnapsack);
 
-            return recursiveFitFamily(instance, itemsToInsert, necessaryResources, solution, random);
+            return recursiveFitFamily(instance, family, itemsToInsert, necessaryResources, solution, random);
         }
+    }
+
+    private static int[] iterativeFitFamily(Instance instance, int family, Set<Integer> itemsToInsert, int[] necessaryResources, int[] solution, Random random) {
+        do {
+            //First you try to insert the problematic item into a used knapsack
+            ArrayList<Integer> knapsackUsed = getKnapsackUsedForFamily(instance, solution, family);
+            int knapsackForWholeFamily = findKnapsackToFitWholeFamily(instance, necessaryResources, knapsackUsed, random);
+
+            if (knapsackForWholeFamily == -1) {
+                ArrayList<Integer> availableKnapsacks = new ArrayList<>();
+                for (int k = 0; k < instance.nKnapsacks(); k++) {
+                    availableKnapsacks.add(k);
+                }
+                knapsackForWholeFamily = findKnapsackToFitWholeFamily(instance, necessaryResources, availableKnapsacks, random);
+
+            }
+            if (knapsackForWholeFamily != -1) {
+                for (int i : itemsToInsert) {
+                    solution[i] = knapsackForWholeFamily;
+                    //update residual capacity
+                    knapRes.removeResources(instance.items()[i], knapsackForWholeFamily);
+                }
+                break;
+            } else if (itemsToInsert.size() == 1) {
+                return null;
+            } else {
+                int[] indexes = findMostProblematicItem(instance, itemsToInsert, necessaryResources);
+                int maxItemIndex = indexes[0];
+                int maxResourceIndex = indexes[1];
+
+                int selectedKnapsack = findBestKnapsackForProblematicItem(instance, maxItemIndex, maxResourceIndex);
+
+                if (selectedKnapsack == -1) {
+                    return null; //TODO: credo succeda "spesso". Non so se va bene fare throw di un expection "spesso"
+                } else {
+                    //Update solution and resources
+                    solution[maxItemIndex] = selectedKnapsack;
+                    itemsToInsert.remove(maxItemIndex);
+
+                    for (int r = 0; r < instance.nResources(); r++) {
+                        necessaryResources[r] -= instance.items()[maxItemIndex][r];
+                    }
+                    knapRes.removeResources(instance.items()[maxItemIndex], selectedKnapsack);
+                }
+            }
+        } while (!itemsToInsert.isEmpty());
+        return solution;
     }
 
     /**
@@ -331,12 +402,7 @@ public class GRASP {
     }
 
 
-    private static int findKnapsackToFitWholeFamily(Instance instance, int[] necessaryResources, Random random) {
-        ArrayList<Integer> availableKnapsacks = new ArrayList<>();
-        for (int k = 0; k < instance.nKnapsacks(); k++) {
-            availableKnapsacks.add(k);
-        }
-
+    private static int findKnapsackToFitWholeFamily(Instance instance, int[] necessaryResources, List<Integer> availableKnapsacks, Random random) {
         while(!availableKnapsacks.isEmpty()) {
             int randomIndex = random.nextInt(availableKnapsacks.size());
             int randomKnapsack = availableKnapsacks.get(randomIndex);
@@ -373,6 +439,19 @@ public class GRASP {
         }
 
         return new ArrayList<>(sortedFamilyList.subList(0, numBestElements));
+    }
+
+    private static ArrayList<Integer> getKnapsackUsedForFamily(Instance instance, int[] solution, int family) {
+        int startItem = instance.firstItems()[family];
+        int endItem = (family == instance.nFamilies() - 1) ? instance.nItems(): instance.firstItems()[family+1];
+
+        ArrayList<Integer> knapsackUsed = new ArrayList<>();
+        for (int i = startItem; i < endItem; i++) {
+            if (solution[i] != -1) {
+                knapsackUsed.add(solution[i]);
+            }
+        }
+        return knapsackUsed;
     }
 
     private static int getRandomFamilyFromRCL(List<Integer> rcl, Random random) {
