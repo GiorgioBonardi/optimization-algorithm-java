@@ -94,7 +94,7 @@ public class Utils {
             orderedFamilies.add(entry.getKey());
         }
 
-        int halfIndex = (int) (orderedFamilies.size() * 0.5);
+        int halfIndex = (int) (orderedFamilies.size() * 0.3);
 
         // Estrai la prima metà della lista
         List<Integer> firstHalf = orderedFamilies.subList(0, halfIndex);
@@ -112,9 +112,9 @@ public class Utils {
             }
         }
         // sono in ordine decrescente
-        List<Integer> familiesNotUsedBySpecialGain = rankFamiliesBySpecialGain(instance, availableFamilies);
+        List<Integer> familiesNotUsedBySpecialGain = sortFamiliesBySpecialGain(instance, availableFamilies);
 
-        int halfIndex = (int) (familiesNotUsedBySpecialGain.size() * 0.75);
+        int halfIndex = (int) (familiesNotUsedBySpecialGain.size() * 0.85);
         // Più è basso più famiglie prendo
 
         // Estrai la prima metà della lista
@@ -162,7 +162,7 @@ public class Utils {
                 .sorted(Comparator.comparingDouble((Integer familyIndex) -> instance.penalties()[familyIndex]).reversed())
                 .collect(Collectors.toCollection(LinkedList::new));
     }
-    public static List<Integer> rankFamiliesBySpecialGain(Instance instance, Set<Integer> availableFamily) {
+    public static List<Integer> sortFamiliesBySpecialGain(Instance instance, Set<Integer> availableFamily) {
         List<Integer> familyIndices = new ArrayList<>();
         for (int family : availableFamily) {
             familyIndices.add(family);
@@ -171,8 +171,7 @@ public class Utils {
         familyIndices.sort(Comparator.comparingDouble((Integer familyIndex) -> {
             int endItem = (familyIndex == instance.nFamilies() - 1) ? instance.nItems(): instance.firstItems()[familyIndex+1];
             int nItems = endItem - instance.firstItems()[familyIndex];
-            double gain = (instance.profits()[familyIndex] - (double) ((nItems - 1) * instance.penalties()[familyIndex]) / 2);
-            return gain;
+            return (instance.profits()[familyIndex] - (double) ((nItems - 1) * instance.penalties()[familyIndex]) / 2);
         }).reversed());
         return familyIndices;
     }

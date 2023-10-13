@@ -261,7 +261,7 @@ public class GRASP {
         int selectedKnapsack = findBestKnapsackForProblematicItem(instance, maxItemIndex, maxResourceIndex);
 
         if (selectedKnapsack == -1) {
-            return null; //TODO: credo succeda "spesso". Non so se va bene fare throw di un expection "spesso"
+            return null;
         } else {
             //Update solution and resources
             solution[maxItemIndex] = selectedKnapsack;

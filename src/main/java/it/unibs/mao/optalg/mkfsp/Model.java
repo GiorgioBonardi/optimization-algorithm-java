@@ -1,13 +1,9 @@
 package it.unibs.mao.optalg.mkfsp;
 
-import gurobi.GRB;
-import gurobi.GRBEnv;
-import gurobi.GRBException;
-import gurobi.GRBLinExpr;
-import gurobi.GRBModel;
-import gurobi.GRBVar;
+import gurobi.*;
 import it.unibs.mao.optalg.mkfsp.grasp.Utils;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -133,8 +129,44 @@ public class Model {
       }
     }
 
+    final CallbackExecutionInfo executionInfo = new CallbackExecutionInfo();
+    model.setCallback(new MkfspCallback(executionInfo));
     model.update();
 
-    return new ModelVars(model, xvars, yvars, zvars, svars);
+    return new ModelVars(model, xvars, yvars, zvars, svars, executionInfo);
+  }
+
+  public static class CallbackExecutionInfo {
+    public double startTime;
+    public double objValue;
+    public List<double[]> history = new ArrayList<>();
+  }
+
+  private static class MkfspCallback extends GRBCallback {
+    private CallbackExecutionInfo executionInfo;
+
+    public MkfspCallback(final CallbackExecutionInfo executionInfo){
+      this.executionInfo = executionInfo;
+    }
+
+    @Override
+    protected void callback() {
+      if (Double.isNaN(executionInfo.startTime)) {
+        executionInfo.startTime = System.currentTimeMillis();
+      }
+
+      try {
+        if (where == GRB.CB_MIPSOL) {
+          final double newMipsolObj = getDoubleInfo(GRB.CB_MIPSOL_OBJ);
+          final double elapsed = getDoubleInfo(GRB.CB_RUNTIME);
+          executionInfo.history.add(new double[] {elapsed, newMipsolObj});
+          System.out.println("TTB: " + (executionInfo.history.get(executionInfo.history.size() - 1)[0]) + "s  Nuova MIP incumbent: " + executionInfo.history.get(executionInfo.history.size() - 1)[1]);
+
+
+        }
+      } catch (final Exception e) {
+        // TODO
+      }
+    }
   }
 }

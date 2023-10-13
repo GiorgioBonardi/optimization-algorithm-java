@@ -110,7 +110,15 @@ public class GurobiSearch {
                 final FeasibilityCheck check = instance.checkFeasibility(solution, objValue);
 
 
+                //TTB
+                Model.CallbackExecutionInfo executionInfo = modelVars.executionInfo();
+                List<double[]> history = executionInfo.history;
+
+                System.out.println("\nSolution: " + objValue + " (valid: " + check.isValid() + ")" + " TTB: " +
+                        (history.get(history.size() - 1)[0]) + "s MIP Incumbent: " + history.get(history.size() - 1)[1]);
+
                 System.out.println("\nSolution: " + objValue + " (valid: " + check.isValid() + ")");
+
                 if (!check.isValid()) {
                     for (final String errMsg: check.errorMessages()) {
                         System.out.println("  - " + errMsg);
