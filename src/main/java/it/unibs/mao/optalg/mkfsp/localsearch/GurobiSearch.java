@@ -21,7 +21,7 @@ public class GurobiSearch {
     public static final Path OUTPUT_DIR = Path.of("output");
     public static final DateTimeFormatter DTF = DateTimeFormatter.ISO_LOCAL_DATE_TIME
             .withZone(ZoneOffset.UTC);
-    public static int[] run(Instance instance, int[] initialSolution, double timeLimit, HashMap<Integer, Integer> splitForFamily) throws GRBException, IOException  {
+    public static int[] run(Instance instance, int[] initialSolution, double timeLimit, HashMap<Integer, Integer> splitForFamily) throws IOException, RuntimeException  {
 
         final Instant now = Instant.ofEpochMilli(System.currentTimeMillis());
         final String executionId = DTF.format(now).replace(':', '_');
@@ -56,19 +56,11 @@ public class GurobiSearch {
             List<Integer> familiesToBan = Utils.getWorstFamiliesNotUsedBySpecialGain(instance, initialSolution);
 
             for (int i = 0; i < instance.nFamilies(); ++i) {
-
-
                 if(familiesToSet.contains(i)) {
                     modelVars.xvars()[i].set(GRB.DoubleAttr.LB, 1);
                 } else if(familiesToBan.contains(i)) {
                     modelVars.xvars()[i].set(GRB.DoubleAttr.UB, 0);
                 }
-
-                /*
-                if(familiesToBan.contains(i)) {
-                    modelVars.xvars()[i].set(GRB.DoubleAttr.UB, 0);
-                }
-                */
             }
 
 
@@ -131,7 +123,6 @@ public class GurobiSearch {
                 final int statusCode =  model.get(GRB.IntAttr.Status);
                 System.out.println("\nGurobi terminated with status code: " + statusCode);
             }
-
         } catch (GRBException e) {
             throw new RuntimeException(e);
         } finally {
@@ -139,6 +130,6 @@ public class GurobiSearch {
                 model.dispose();
             }
         }
-        return null;
+        throw new RuntimeException();
     }
 }

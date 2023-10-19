@@ -1,6 +1,5 @@
 package it.unibs.mao.optalg.mkfsp.grasp;
 
-import gurobi.GRBException;
 import it.unibs.mao.optalg.mkfsp.FeasibilityCheck;
 import it.unibs.mao.optalg.mkfsp.Instance;
 import it.unibs.mao.optalg.mkfsp.localsearch.GurobiSearch;
@@ -15,50 +14,10 @@ public class GRASP {
 
     private static final double DEFAULT_TIME_LIMIT_GUROBI = 600; //seconds
 
-    // creare una lista di beta
     private static final double[] BETA_LIST = {0.1, 0.2, 0.3};
-    private static final double BETA_RCL = 0.3;
     private static KnapsacksResource knapRes = null;
 
-    /*
-    public static Solution grasp(Instance instance, int numIterations) throws GRBException, IOException {
-
-        int nItems = instance.nItems();
-        int[] bestSolution = new int[nItems];
-        double bestObjectiveValue = Double.NEGATIVE_INFINITY;
-        Random random = new Random();
-        long startTime = System.nanoTime();
-
-        int[] solutionConstructivePhase = new int[0];
-
-        long timer = System.currentTimeMillis();
-        while(System.currentTimeMillis() - timer < TIME_LIMIT_GRASP){
-            //for (int iteration = 0; iteration < numIterations; iteration++) {
-            solutionConstructivePhase = constructivePhase(instance);
-            double objectiveValueConstructivePhase = Utils.calculateObjectiveValue(instance, solutionConstructivePhase);
-            
-            if (objectiveValueConstructivePhase > bestObjectiveValue) {
-                bestObjectiveValue = objectiveValueConstructivePhase;
-                bestSolution = solutionConstructivePhase.clone();
-                System.out.println("BEST : " + bestObjectiveValue + " TTB: " + (System.currentTimeMillis() - timer)/1000);
-
-            }
-        }
-
-        long endTime = System.nanoTime();
-        double elapsedTimeInSeconds = (endTime - startTime) / 1e9;
-
-        return new Solution(bestSolution, bestObjectiveValue, elapsedTimeInSeconds);
-    }
-    
-     */
-    public static Solution grasp(Instance instance) throws IOException, GRBException {
-        /*
-        Eseguo la Constructive Phase per TIME_LIMIT_GRASP (oppure esce per stale iteration)
-        Successivamente chiamo Gurobi per Y secondi + tempo rimanente
-        (Parametri da settare in base all'istanza)
-         */
-        
+    public static Solution grasp(Instance instance) throws RuntimeException, IOException {
         long startTime = System.currentTimeMillis();
         int[] solutionConstructivePhase = new int[0];
 
@@ -88,12 +47,10 @@ public class GRASP {
         final FeasibilityCheck check = instance.checkFeasibility(bestSolConstructivePhase, bestObjectiveConstructivePhase);
 
         if (!check.isValid()) {
-            //TODO: non so se da mettere qua
             for (final String errMsg: check.errorMessages()) {
                 System.out.println("  - " + errMsg);
             }
-            //Creare una exception apposita?
-            throw new RuntimeException("Solution found by GRASP not feasible\"");
+            throw new RuntimeException("Solution found by GRASP not feasible");
         }
 
         double additionalSeconds = (TIME_LIMIT_GRASP - elapsedTimeMillis) / 1000;
@@ -110,22 +67,12 @@ public class GRASP {
 
         HashMap<Integer, Integer> splitForFamilies = Utils.calculateSplitForEachFamily(instance, bestSolConstructivePhase);
 
-        //TODO: meglio non far tornare null ma fare un throw di un exception
         int[] solutionGurobiSearch = GurobiSearch.run(instance, bestSolConstructivePhase, totalTimeLimitGurobi, splitForFamilies);
-        double objectiveGurobiSearch = solutionGurobiSearch != null ? Utils.calculateObjectiveValue(instance, solutionGurobiSearch) : Double.NEGATIVE_INFINITY;
-
+        double objectiveGurobiSearch = Utils.calculateObjectiveValue(instance, solutionGurobiSearch);
         System.out.println("SOL TROVATA DA GUROBI: " + objectiveGurobiSearch);
 
-        /*
-        //TODO: può succedere che gurobi ritorna una sol peggiore? non credo ma da discutere
-        if (objectiveGurobiSearch > bestObjectiveValue) {
-            bestObjectiveValue = objectiveGurobiSearch;
-            bestSolution = solutionGurobiSearch.clone();
-            timeToBest = System.currentTimeMillis() - timer;
-        }
-        */
         long endTime = System.currentTimeMillis();
-        double elapsedTimeInSeconds = (endTime - startTime) / 1000;
+        double elapsedTimeInSeconds = (double) (endTime - startTime) / 1000;
 
         return new Solution(solutionGurobiSearch, objectiveGurobiSearch, elapsedTimeInSeconds);
     }
@@ -154,13 +101,11 @@ public class GRASP {
         int randomIndex = random.nextInt(BETA_LIST.length);
         double BETA_RCL = BETA_LIST[randomIndex];
         
-        //Initialization of the solution 
         Arrays.fill(solution, -1);
 
         List<Integer> sortedFamilyList = Utils.sortFamiliesByPenalties(instance, availableFamily);
 
         while (!sortedFamilyList.isEmpty()) {
-            //seleziono una famiglia random dalla lista RCL
             List<Integer> rcl = buildRCL(sortedFamilyList, BETA_RCL);
             int randomFamilyIndex = random.nextInt(rcl.size());
             int randomFamily = rcl.get(randomFamilyIndex);
@@ -184,16 +129,6 @@ public class GRASP {
                 }
             }
 
-            /*
-            try {
-                solution = recursiveFitFamily(instance, randomFamily, itemsToInsert, necessaryResources, solution, random);
-                //solution = iterativeFitFamily(instance, randomFamily, itemsToInsert, necessaryResources, solution, random);
-            } catch (NoSolutionFoundException e) {
-                solution = prevSolution;
-            }
-
-             */
-
             solution = recursiveFitFamily(instance, randomFamily, itemsToInsert, necessaryResources, solution, random);
             //solution = iterativeFitFamily(instance, randomFamily, itemsToInsert, necessaryResources, solution, random);
             if(solution == null) {
@@ -201,12 +136,11 @@ public class GRASP {
             }
 
             /*
+            //Defragmentation
             if(solution == null) {
                 solution = prevSolution;
             }
-
             else {
-
                 countInsertedFamilies++;
             }
             if (countInsertedFamilies == 3) {
@@ -214,20 +148,13 @@ public class GRASP {
                 countInsertedFamilies = 0;
             }
              */
-            //availableFamily.remove(randomFamily);
+
             sortedFamilyList.remove(randomFamilyIndex);
         }
 
         return solution;
     }
 
-    /*
-    public static class NoSolutionFoundException extends RuntimeException {
-        public NoSolutionFoundException() {
-        }
-    }
-
-     */
 
     private static int[] recursiveFitFamily(Instance instance, int family, Set<Integer> itemsToInsert, int[] necessaryResources, int[] solution, Random random) {
         //First you try to insert the problematic item into an used knapsack
@@ -338,8 +265,8 @@ public class GRASP {
         int maxResourceIndex = -1;
         double maxValue = 0;
         for(int r = 0; r < instance.nResources(); r++) {
+            //ALTERNATIVE 1:
             for (int i : itemsToInsert) {
-                //ALTERNATIVA 1:
                 double currentValue = (double) instance.items()[i][r] / necessaryResources[r];
                 if(currentValue > maxValue) {
                     maxValue = currentValue;
@@ -349,7 +276,7 @@ public class GRASP {
             }
 
 
-            //ALTERNATIVA 2:
+            //ALTERNATIVE 2:
                 /*
                 AL posto che fare /N_jr divido per la risorsa r_esima di ogni knapsack
                 e prendo il valore maggiore
@@ -373,11 +300,10 @@ public class GRASP {
         return indexes;
     }
 
+
     private static int findBestKnapsackForProblematicItem(Instance instance, int maxItemIndex, int maxResourceIndex) {
-        //metto il max nel knapsack nel quale rimangono meno risorse per la specifica risorsa scelta in teoria
-        //scelta knapsack
         int minKnapsack = -1;
-        int minGap =  1000000; //TODO: mettere double minGap = double.POSITIVE INIFINITY
+        int minGap =  Integer.MAX_VALUE;
         int mostDangerousResource = instance.items()[maxItemIndex][maxResourceIndex];
 
         for(int k = 0; k < instance.nKnapsacks(); k++){
@@ -428,9 +354,6 @@ public class GRASP {
     }
 
     private static List<Integer> buildRCL(List<Integer> sortedFamilyList, double beta) {
-        //List<Integer> rankedFamilies = Utils.rankFamiliesBySpecialGain(instance, availableFamily);
-        //List<Integer> rankedFamilies = Utils.sortFamiliesByPenalties(instance, availableFamily);
-
         int numBestElements = (int) (sortedFamilyList.size() * beta);
         numBestElements = numBestElements > 0 ? numBestElements : 1;
 
