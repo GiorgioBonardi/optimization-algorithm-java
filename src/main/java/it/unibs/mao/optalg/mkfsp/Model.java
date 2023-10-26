@@ -1,11 +1,12 @@
 package it.unibs.mao.optalg.mkfsp;
 
-import gurobi.GRB;
-import gurobi.GRBEnv;
-import gurobi.GRBException;
-import gurobi.GRBLinExpr;
-import gurobi.GRBModel;
-import gurobi.GRBVar;
+import gurobi.*;
+import it.unibs.mao.optalg.mkfsp.grasp.Utils;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * A utility class with one static method that builds the Gurobi model for
@@ -38,6 +39,7 @@ public class Model {
     final int[] firstItems = instance.firstItems();
     final int[][] items = instance.items();
     final int[][] knapsacks = instance.knapsacks();
+    final int nResources = instance.nResources();
 
     // Add model variables
     final GRBVar[] xvars = new GRBVar[nFamilies];
@@ -75,6 +77,26 @@ public class Model {
 
       // Add logical constraints between yvars and zvars
       for (int k = 0; k < nKnapsacks; ++k) {
+        int nMaxItems = endItem - firstItem; // Initialize nMaxItems to Family cardinality
+
+        for (int r = 0; r < nResources; ++r) {
+          int totalConsumed = 0; // Initialize total resource consumption
+
+          //Add ascending sorting of the items !!!!
+          Set<Integer> availableItems = new HashSet<>();
+          for (int i = firstItem; i < endItem; ++i) {
+            availableItems.add(i);
+          }
+
+          List<Integer> itemList = Utils.rankItemsByResource(instance, availableItems, r);
+
+          for (int i = 0; i < itemList.size(); ++i) {
+            totalConsumed = totalConsumed + items[i][r];
+            if(totalConsumed > knapsacks[k][r]) {
+              nMaxItems = Math.min(nMaxItems, i);
+            }
+          }
+        }
         zsLhs.addTerm(1, zvars[j][k]);
 
         final GRBLinExpr yzLhs = new GRBLinExpr();
@@ -82,12 +104,17 @@ public class Model {
           yzLhs.addTerm(1, yvars[i][k]);
         }
         final GRBLinExpr _rhs = new GRBLinExpr();
-        _rhs.addTerm(endItem - firstItem, zvars[j][k]);
+        //_rhs.addTerm(endItem - firstItem, zvars[j][k]);
+        _rhs.addTerm(nMaxItems, zvars[j][k]);
         model.addConstr(yzLhs, GRB.LESS_EQUAL, _rhs, "_z");
       }
 
+
       // Add logical constraints between zvars and svars
       model.addConstr(zsLhs, GRB.LESS_EQUAL, svars[j], "_s");
+
+      // Add new constraints between svars and cardinality of Fj
+      model.addConstr(svars[j], GRB.LESS_EQUAL, (endItem - firstItem) - 1, "_new");
     }
 
     // Add maximum capacity constraints
@@ -102,8 +129,44 @@ public class Model {
       }
     }
 
+    final CallbackExecutionInfo executionInfo = new CallbackExecutionInfo();
+    model.setCallback(new MkfspCallback(executionInfo));
     model.update();
 
-    return new ModelVars(model, xvars, yvars, zvars, svars);
+    return new ModelVars(model, xvars, yvars, zvars, svars, executionInfo);
+  }
+
+  public static class CallbackExecutionInfo {
+    public double startTime;
+    public double objValue;
+    public List<double[]> history = new ArrayList<>();
+  }
+
+  private static class MkfspCallback extends GRBCallback {
+    private CallbackExecutionInfo executionInfo;
+
+    public MkfspCallback(final CallbackExecutionInfo executionInfo){
+      this.executionInfo = executionInfo;
+    }
+
+    @Override
+    protected void callback() {
+      if (Double.isNaN(executionInfo.startTime)) {
+        executionInfo.startTime = System.currentTimeMillis();
+      }
+
+      try {
+        if (where == GRB.CB_MIPSOL) {
+          final double newMipsolObj = getDoubleInfo(GRB.CB_MIPSOL_OBJ);
+          final double elapsed = getDoubleInfo(GRB.CB_RUNTIME);
+          executionInfo.history.add(new double[] {elapsed, newMipsolObj});
+          System.out.println("TTB: " + (executionInfo.history.get(executionInfo.history.size() - 1)[0]) + "s  Nuova MIP incumbent: " + executionInfo.history.get(executionInfo.history.size() - 1)[1]);
+
+
+        }
+      } catch (final Exception e) {
+        // TODO
+      }
+    }
   }
 }

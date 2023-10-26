@@ -12,5 +12,5 @@ public record ModelVars(
     GRBVar[] xvars,
     GRBVar[][] yvars,
     GRBVar[][] zvars,
-    GRBVar[] svars
-) {}
+    GRBVar[] svars,
+    Model.CallbackExecutionInfo executionInfo) {}
