@@ -165,7 +165,7 @@ public class Model {
 
         }
       } catch (final Exception e) {
-        // TODO
+        System.out.println(e.getMessage());
       }
     }
   }

@@ -2,7 +2,6 @@ package it.unibs.mao.optalg.mkfsp.grasp;
 
 import it.unibs.mao.optalg.mkfsp.FeasibilityCheck;
 import it.unibs.mao.optalg.mkfsp.Instance;
-import it.unibs.mao.optalg.mkfsp.localsearch.GurobiSearch;
 
 import java.io.IOException;
 import java.util.*;
@@ -82,8 +81,6 @@ public class GRASP {
         int nFamilies = instance.nFamilies();
         int[] solution = new int[nItems];
 
-        //int countInsertedFamilies = 0; //Used for defragmentation
-
         // Initialization of 'knapRes'
         knapRes = new KnapsacksResource(nKnapsacks);
         for (int i = 0; i < nKnapsacks; i++) {
@@ -130,24 +127,11 @@ public class GRASP {
             }
 
             solution = recursiveFitFamily(instance, randomFamily, itemsToInsert, necessaryResources, solution, random);
+            //Alternative to the recursive method, same performance
             //solution = iterativeFitFamily(instance, randomFamily, itemsToInsert, necessaryResources, solution, random);
             if(solution == null) {
                 solution = prevSolution;
             }
-
-            /*
-            //Defragmentation
-            if(solution == null) {
-                solution = prevSolution;
-            }
-            else {
-                countInsertedFamilies++;
-            }
-            if (countInsertedFamilies == 3) {
-                defragmentationKnapsack(instance, solution, knapRes);
-                countInsertedFamilies = 0;
-            }
-             */
 
             sortedFamilyList.remove(randomFamilyIndex);
         }
@@ -234,7 +218,7 @@ public class GRASP {
                 int selectedKnapsack = findBestKnapsackForProblematicItem(instance, maxItemIndex, maxResourceIndex);
 
                 if (selectedKnapsack == -1) {
-                    return null; //TODO: credo succeda "spesso". Non so se va bene fare throw di un expection "spesso"
+                    return null;
                 } else {
                     //Update solution and resources
                     solution[maxItemIndex] = selectedKnapsack;
@@ -277,10 +261,6 @@ public class GRASP {
 
 
             //ALTERNATIVE 2:
-                /*
-                AL posto che fare /N_jr divido per la risorsa r_esima di ogni knapsack
-                e prendo il valore maggiore
-                 */
             //double currentValue = (double) instance.items()[i][r] / resCapacity[k][r];
             /*for (int i : itemsToInsert) {
                 for (int k = 0; k < nKnapsacks; k++) {
@@ -292,7 +272,6 @@ public class GRASP {
                     }
                 }
             }
-
              */
         }
         indexes[0] = maxItemIndex;
@@ -344,7 +323,7 @@ public class GRASP {
         return -1;
     }
 
-    private static boolean wholeFamilyFits( Instance instance, int[] necessaryResources, int[] knapsackCapacity) {
+    private static boolean wholeFamilyFits(Instance instance, int[] necessaryResources, int[] knapsackCapacity) {
         for (int r = 0; r < instance.nResources(); r++) {
             if (necessaryResources[r] > knapsackCapacity[r]) {
                 return false;
@@ -376,156 +355,4 @@ public class GRASP {
         }
         return knapsackUsed;
     }
-
-    private static int getRandomFamilyFromRCL(List<Integer> rcl, Random random) {
-        int size = rcl.size();
-        int randomIndex = random.nextInt(size);
-        return rcl.get(randomIndex);
-    }
-
-
-    private static void defragmentationKnapsack(Instance instance, int[] solution, KnapsacksResource knapRes){
-        //HashMap contenente numero di knapsack e lista di item che contiene
-        HashMap<Integer, Set<Integer>> knapsackContent = new HashMap<Integer, Set<Integer>>();
-        //knapsackFamilyOccurences contiene quante famiglie diverse contiene un knapsack (per ordinare i knapsack)
-        HashMap<Integer, Integer> knapsackDistinctFamilies = new HashMap<Integer, Integer>();
-        //knapsackUsed contiene gli indici degli item usati
-        Set<Integer> knapsackUsed = new HashSet<Integer>();
-        updateKnapsackUsed(knapsackUsed, solution);
-
-        while (!knapsackUsed.isEmpty()) {
-            int worstKnapsack = getWorstKnapsack(knapsackContent, knapsackDistinctFamilies, knapsackUsed, instance, solution, knapRes);
-            fixKnapsack(knapsackContent, knapsackUsed, instance, solution, knapRes, worstKnapsack);
-            knapsackUsed.remove(worstKnapsack);
-        }
-    }
-
-    private static void updateKnapsackUsed(Set<Integer> knapsackUsed, int[] solution){
-        //knapsack usati
-        for (int i = 0; i < solution.length; i ++) {
-            if (!knapsackUsed.contains(solution[i]) && solution[i] != -1) {
-                knapsackUsed.add(solution[i]);
-            }
-        }
-    }
-    private static int getWorstKnapsack(HashMap<Integer, Set<Integer>> knapsackContent, HashMap<Integer, Integer> knapsackDistinctFamilies, Set<Integer> knapsackUsed, Instance instance, int[] solution, KnapsacksResource knapRes){
-        knapsackContent.clear();
-        knapsackDistinctFamilies.clear();
-        //per ogni knapsack genero la lista di item che contiene
-        for (int k : knapsackUsed) {
-            Set<Integer> families = new HashSet<Integer>();
-            Set<Integer> items = new HashSet<Integer>();
-            int familyOccurences = 0;
-
-            for (int j = 0; j < instance.nFamilies(); j++) {
-                int startItem = instance.firstItems()[j];
-                int endItem = j + 1 < instance.nFamilies() ? instance.firstItems()[j + 1] : instance.nItems();
-
-                for (int i = startItem; i < endItem; i++) {
-                    if(solution[i] == k){
-                        if(!families.contains(j)){
-                            familyOccurences++;
-                        }
-                        families.add(j);
-                        items.add(i);
-                    }
-                }
-            }
-            knapsackContent.put(k, items);
-            knapsackDistinctFamilies.put(k, familyOccurences);
-        }
-        //ora knapsackContent contiene tutti i knapsack con le corrispettive famiglie
-
-        //ordino knapsackFamilyOccurences
-        List<Integer> sortedKnapsacks = knapsackDistinctFamilies.entrySet()
-                .stream()
-                .sorted(Map.Entry.<Integer, Integer>comparingByValue().reversed())
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-
-        List<Integer> orderedByDistinctFamilies = new ArrayList<>(sortedKnapsacks);
-
-        //prendo il knapsack peggiore e i sui item
-        return orderedByDistinctFamilies.get(0);
-    }
-
-    private static void fixKnapsack(HashMap<Integer, Set<Integer>> knapsackContent, Set<Integer> knapsackUsed, Instance instance, int[] solution, KnapsacksResource knapRes, int worstKnapsack){
-        Set<Integer> itemsToMove = knapsackContent.get(worstKnapsack);
-
-        while (!itemsToMove.isEmpty()) {
-            int maxItemIndex = -1;
-            double maxValue = 0;
-            for (int r = 0; r < instance.nResources(); r++) {
-                for (int i : itemsToMove) {
-                    double currentValue = (double) instance.items()[i][r] / instance.knapsacks()[worstKnapsack][r];
-                    if (currentValue > maxValue) {
-                        maxValue = currentValue;
-                        maxItemIndex = i;
-                    }
-
-                }
-            }
-
-            //ordino i knapsack in base a quanti parenti di maxItemIndex contengono
-            //maxItemFamily è l'indice della famiglia di maxItemIndex
-            int maxItemFamily = getFamilyFromItem(instance, maxItemIndex);
-
-            HashMap<Integer, Integer> knapsackRelativesOccurences = new HashMap<Integer, Integer>();
-            for (int k : knapsackUsed) {
-                if (k != worstKnapsack) {
-                    int countRelatives = 0;
-                    for (int i : knapsackContent.get(k)) {
-                        if (getFamilyFromItem(instance, i) == maxItemFamily) { //TODO: inserire codice estrai famiglie
-                            countRelatives++;
-                        }
-                    }
-                    if(countRelatives != 0) {
-                        knapsackRelativesOccurences.put(k, countRelatives);
-                    }
-                }
-            }
-
-            //ordino i knapsack in base a quanti parenti di maxItemIndex contengono
-            List<Integer> sortedByRelatives = knapsackRelativesOccurences.entrySet()
-                    .stream()
-                    .sorted(Map.Entry.<Integer, Integer>comparingByValue().reversed())
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
-
-            List<Integer> orderedByRelatives = new ArrayList<>(sortedByRelatives);
-
-            //cerco di spostare maxItemIndex in un altro knapsack
-            for (int k : orderedByRelatives) {
-                boolean fit = true;
-
-                for (int r = 0; r < instance.nResources(); r++) {
-                    if(knapRes.getResources().get(k)[r] < instance.items()[maxItemIndex][r]) {
-                        fit = false;
-                        break;
-                    }
-                }
-                if (fit) {
-                    //System.out.println("ITEM: " + maxItemIndex + " from knapsack: " + worstKnapsack + " to knapsack: " + k);
-                    //sposto maxItemIndex in k
-                    solution[maxItemIndex] = k;
-                    //aggiorno le risorse rimanenti
-                    knapRes.removeResources(instance.items()[maxItemIndex], k);
-                    knapRes.addResources(instance.items()[maxItemIndex], worstKnapsack);
-                    break;
-                }
-            }
-            itemsToMove.remove(maxItemIndex);
-        }
-    }
-
-    private static int getFamilyFromItem(Instance instance, int itemIndex) {
-        int familyIndex = instance.nFamilies() - 1;
-        for (int i = 0; i < instance.firstItems().length; i++) {
-            if (itemIndex < instance.firstItems()[i]) {
-                return (i - 1);
-            }
-        }
-        return familyIndex;
-    }
-
 }

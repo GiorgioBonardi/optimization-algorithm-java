@@ -25,8 +25,7 @@ public class Solution implements Serializable {
     public double getElapsedTimeInSecond() { return  elapsedTimeInSecond; };
 
     public String toString() {
-        return "Solution: " + Arrays.toString(this.solution) + "\nObjective Value: " + this.objectiveValue + "\nElasped Time: " + this.elapsedTimeInSecond + "s" +
-                "\n#Grasp iterations: ";
+        return "Solution: " + Arrays.toString(this.solution) + "\nObjective Value: " + this.objectiveValue + "\nElasped Time: " + this.elapsedTimeInSecond + "s";
     }
 
 }
