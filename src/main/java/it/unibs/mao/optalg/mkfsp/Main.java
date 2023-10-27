@@ -53,6 +53,7 @@ public class Main {
     paths.sort(null);
 
     /*
+    //Use to execute a specific instance
     final List<Path> pathsTemp = new ArrayList<>();
     pathsTemp.add(Path.of(INSTANCES_DIR + "/instance01.json"));
      */
@@ -75,22 +76,17 @@ public class Main {
 
 
         // Call GRASP algorithm
-        Solution solution = GRASP.grasp(instance);
-        System.out.println(solution);
+        Solution solution = GRASP.grasp(instance, outputDir);
 
-        //Salvataggio GRASP su file
+        //Save heuristic solution to a json file
         Path filePath = outputDir.resolve(instance.id() + ".json");
 
-        // Usa Jackson per convertire l'oggetto Solution in una stringa JSON
         ObjectMapper objectMapper = new ObjectMapper();
         String json = objectMapper.writeValueAsString(solution);
 
-        // Salva la stringa JSON nel file
         try (FileWriter writer = new FileWriter(filePath.toFile())) {
           writer.write(json);
         }
-
-
       }
 
     } catch (RuntimeException e) {

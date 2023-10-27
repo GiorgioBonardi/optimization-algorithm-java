@@ -4,6 +4,7 @@ import it.unibs.mao.optalg.mkfsp.FeasibilityCheck;
 import it.unibs.mao.optalg.mkfsp.Instance;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -16,7 +17,7 @@ public class GRASP {
     private static final double[] BETA_LIST = {0.1, 0.2, 0.3};
     private static KnapsacksResource knapRes = null;
 
-    public static Solution grasp(Instance instance) throws RuntimeException, IOException {
+    public static Solution grasp(Instance instance, Path outputDir) throws RuntimeException, IOException {
         long startTime = System.currentTimeMillis();
         int[] solutionConstructivePhase = new int[0];
 
@@ -66,7 +67,7 @@ public class GRASP {
 
         HashMap<Integer, Integer> splitForFamilies = Utils.calculateSplitForEachFamily(instance, bestSolConstructivePhase);
 
-        int[] solutionGurobiSearch = GurobiSearch.run(instance, bestSolConstructivePhase, totalTimeLimitGurobi, splitForFamilies);
+        int[] solutionGurobiSearch = GurobiSearch.run(instance, bestSolConstructivePhase, totalTimeLimitGurobi, splitForFamilies, outputDir);
         double objectiveGurobiSearch = Utils.calculateObjectiveValue(instance, solutionGurobiSearch);
         System.out.println("SOL TROVATA DA GUROBI: " + objectiveGurobiSearch);
 

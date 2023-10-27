@@ -77,10 +77,9 @@ public class Utils {
     public static List<Integer> getBestFamiliesUsedBySplit(Instance instance, int[] initialSolution) {
         HashMap<Integer, Integer> familiesWithSplit = calculateSplitForEachFamily(instance, initialSolution);
 
-        // ordino le famiglie in ordine crescente rispetto allo split
         List<Map.Entry<Integer, Integer>> entryList = new ArrayList<>(familiesWithSplit.entrySet());
 
-        // Ordina la lista in base ai valori (split) in ordine crescente
+        // sort the families in non decreasing order according to the number of splits
         Collections.sort(entryList, new Comparator<Map.Entry<Integer, Integer>>() {
             @Override
             public int compare(Map.Entry<Integer, Integer> entry1, Map.Entry<Integer, Integer> entry2) {
@@ -88,18 +87,15 @@ public class Utils {
             }
         });
 
-        // Estrai le chiavi ordinate
         List<Integer> orderedFamilies = new ArrayList<>();
         for (Map.Entry<Integer, Integer> entry : entryList) {
             orderedFamilies.add(entry.getKey());
         }
 
-        int halfIndex = (int) (orderedFamilies.size() * 0.3);
+        int lastIndex = (int) (orderedFamilies.size() * 0.3);
 
-        // Estrai la prima metà della lista
-        List<Integer> firstHalf = orderedFamilies.subList(0, halfIndex);
-
-        return firstHalf;
+        // Return the first portion of the list
+        return orderedFamilies.subList(0, lastIndex);
     }
 
     public static List<Integer> getWorstFamiliesNotUsedBySpecialGain(Instance instance, int[] initialSolution) {
@@ -111,16 +107,13 @@ public class Utils {
                 availableFamilies.add(i);
             }
         }
-        // sono in ordine decrescente
+        // Non increasing order
         List<Integer> familiesNotUsedBySpecialGain = sortFamiliesBySpecialGain(instance, availableFamilies);
 
-        int halfIndex = (int) (familiesNotUsedBySpecialGain.size() * 0.85);
-        // Più è basso più famiglie prendo
+        int firstIndex = (int) (familiesNotUsedBySpecialGain.size() * 0.85);
 
-        // Estrai la prima metà della lista
-        List<Integer> lastHalf = familiesNotUsedBySpecialGain.subList(halfIndex, familiesNotUsedBySpecialGain.size());
-
-        return lastHalf;
+        // Return the last portion of the list
+        return familiesNotUsedBySpecialGain.subList(firstIndex, familiesNotUsedBySpecialGain.size());
     }
 
     public static boolean isAssignmentValid(Instance instance, int i, int k, int[] solution) {

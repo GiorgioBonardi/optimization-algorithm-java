@@ -18,19 +18,9 @@ import it.unibs.mao.optalg.mkfsp.ModelVars;
 
 public class GurobiSearch {
     private static final double INT_TOLERANCE = 1e-6;
-    public static final Path OUTPUT_DIR = Path.of("output");
-    public static final DateTimeFormatter DTF = DateTimeFormatter.ISO_LOCAL_DATE_TIME
-            .withZone(ZoneOffset.UTC);
-    public static int[] run(Instance instance, int[] initialSolution, double timeLimit, HashMap<Integer, Integer> splitForFamily) throws IOException, RuntimeException  {
-
-        final Instant now = Instant.ofEpochMilli(System.currentTimeMillis());
-        final String executionId = DTF.format(now).replace(':', '_');
-        final Path outputDir = OUTPUT_DIR.resolve(executionId);
-        Files.createDirectories(outputDir);
-
+    public static int[] run(Instance instance, int[] initialSolution, double timeLimit, HashMap<Integer, Integer> splitForFamily, Path outputDir) throws RuntimeException  {
         GRBEnv env = null;
         GRBModel model = null;
-        int[] firstItems = instance.firstItems();
 
         try {
             env = new GRBEnv();
@@ -51,7 +41,6 @@ public class GurobiSearch {
                     modelVars.xvars()[i].set(GRB.DoubleAttr.UB, 0);
                 }
             }
-
 
             //Set initial solution of GRASP in Gurobi
             for (int i = 0; i < instance.nItems(); ++i) {
@@ -90,8 +79,7 @@ public class GurobiSearch {
                 final double objValue = model.get(GRB.DoubleAttr.ObjVal);
                 final FeasibilityCheck check = instance.checkFeasibility(solution, objValue);
 
-
-                //TTB
+                //TTB - Time To Best
                 Model.CallbackExecutionInfo executionInfo = modelVars.executionInfo();
                 List<double[]> history = executionInfo.history;
 
